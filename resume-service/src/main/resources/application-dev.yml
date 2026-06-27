@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5433/resume_db
+    username: careerai
+    password: careerai
+  jpa:
+    show-sql: true
+
+logging:
+  level:
+    com.careerai.resume: DEBUG

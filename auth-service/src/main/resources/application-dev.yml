@@ -1,0 +1,12 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/auth_db
+    username: careerai
+    password: careerai
+  jpa:
+    show-sql: true
+
+logging:
+  level:
+    com.careerai.auth: DEBUG
+    org.hibernate.SQL: DEBUG

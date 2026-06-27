@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5435/jobmatch_db
+    username: careerai
+    password: careerai
+  jpa:
+    show-sql: true
+
+logging:
+  level:
+    com.careerai.jobmatch: DEBUG
