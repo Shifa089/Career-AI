@@ -5,6 +5,7 @@ import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.library.Architectures;
 
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 /**
@@ -24,10 +25,10 @@ class ArchitectureTest {
             .whereLayer("Repository").mayOnlyBeAccessedByLayers("Service");
 
     @ArchTest
-    static final ArchRule controllersAreSuffixed = noClasses()
+    static final ArchRule controllersAreSuffixed = classes()
             .that().resideInAPackage("..controller..")
             .and().areAnnotatedWith(org.springframework.web.bind.annotation.RestController.class)
-            .should().haveSimpleNameNotEndingWith("ServiceImpl");
+            .should().haveSimpleNameEndingWith("Controller");
 
     @ArchTest
     static final ArchRule repositoriesMustNotDependOnServices = noClasses()
