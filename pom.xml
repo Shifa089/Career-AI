@@ -55,6 +55,8 @@
         <!-- Plugin versions -->
         <jib.version>3.4.4</jib.version>
         <jacoco.version>0.8.12</jacoco.version>
+        <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
+        <maven-checkstyle-plugin.version>3.6.0</maven-checkstyle-plugin.version>
 
         <!-- JaCoCo coverage gate (overridable per-module) -->
         <jacoco.line.coverage>0.80</jacoco.line.coverage>
@@ -203,6 +205,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
+                    <version>${maven-compiler-plugin.version}</version>
                     <configuration>
                         <release>${maven.compiler.release}</release>
                         <annotationProcessorPaths>
@@ -326,6 +329,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-checkstyle-plugin</artifactId>
+                        <version>${maven-checkstyle-plugin.version}</version>
                         <executions>
                             <execution>
                                 <id>checkstyle-validation</id>
