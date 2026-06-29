@@ -27,24 +27,45 @@ spring:
     consumer:
       group-id: job-match-service
       auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.UUIDDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.value.default.type: com.careerai.jobmatch.event.ResumeAnalysedEvent
+        spring.json.use.type.headers: false
+        spring.json.trusted.packages: "com.careerai.*"
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.UUIDSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
   security:
     oauth2:
       resourceserver:
         jwt:
           secret: ${JWT_SECRET:change-me-in-production-this-must-be-at-least-256-bits-long}
   ai:
+    # Both Anthropic and OpenAI starters are on the classpath: pick chat from Anthropic (Claude) and
+    # embeddings from OpenAI (text-embedding-3-small) so ChatClient/EmbeddingModel resolve unambiguously.
+    model:
+      chat: anthropic
+      embedding: openai
     anthropic:
       api-key: ${ANTHROPIC_API_KEY:}
       chat:
         options:
           model: claude-sonnet-4-6
           max-tokens: 4096
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      embedding:
+        options:
+          model: text-embedding-3-small
+          dimensions: 1536
     vectorstore:
       pgvector:
-        index-type: HNSW
-        distance-type: COSINE_DISTANCE
-        dimensions: 1536
-        initialize-schema: true
+        # We manage our own job_embeddings/resume_embeddings tables and query them with native SQL,
+        # so the Spring AI vector_store table must not be auto-created.
+        initialize-schema: false
 
 eureka:
   client:
@@ -69,3 +90,30 @@ management:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+
+# External job source (Adzuna). Leave blank to disable live ingestion; the dev seeder still runs.
+adzuna:
+  base-url: ${ADZUNA_BASE_URL:https://api.adzuna.com/v1/api}
+  country: ${ADZUNA_COUNTRY:gb}
+  app-id: ${ADZUNA_APP_ID:}
+  app-key: ${ADZUNA_APP_KEY:}
+
+job-match:
+  matching:
+    cache-ttl-minutes: ${MATCH_CACHE_TTL_MINUTES:30}
+    embedding-cache-ttl-minutes: ${EMBEDDING_CACHE_TTL_MINUTES:60}
+  ingestion:
+    seed-sample-jobs: ${SEED_SAMPLE_JOBS:true}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      anthropic-api:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+  retry:
+    instances:
+      anthropic-api:
+        max-attempts: 3
+        wait-duration: 2s
