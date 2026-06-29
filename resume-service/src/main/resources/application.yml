@@ -27,22 +27,22 @@ spring:
     consumer:
       group-id: resume-service
       auto-offset-reset: earliest
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.UUIDSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
   servlet:
     multipart:
-      max-file-size: 10MB
-      max-request-size: 10MB
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          secret: ${JWT_SECRET:change-me-in-production-this-must-be-at-least-256-bits-long}
+      max-file-size: 5MB
+      max-request-size: 5MB
   ai:
-    anthropic:
-      api-key: ${ANTHROPIC_API_KEY:}
+    openai:
+      api-key: ${OPENAI_API_KEY:}
       chat:
         options:
-          model: claude-sonnet-4-6
+          model: ${OPENAI_MODEL:gpt-4o}
           max-tokens: 4096
+          response-format:
+            type: json_object
 
 app:
   aws:
@@ -76,3 +76,16 @@ management:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      openai-api:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+  retry:
+    instances:
+      openai-api:
+        max-attempts: 3
+        wait-duration: 2s
