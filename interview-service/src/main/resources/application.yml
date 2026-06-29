@@ -27,18 +27,22 @@ spring:
     consumer:
       group-id: interview-service
       auto-offset-reset: earliest
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          secret: ${JWT_SECRET:change-me-in-production-this-must-be-at-least-256-bits-long}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.UUIDSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+  websocket:
+    message-size-limit: 65536
   ai:
     anthropic:
       api-key: ${ANTHROPIC_API_KEY:}
       chat:
         options:
-          model: claude-sonnet-4-6
-          max-tokens: 4096
+          model: ${ANTHROPIC_MODEL:claude-sonnet-4-6}
+          max-tokens: 1000
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:change-me-in-production-this-must-be-at-least-256-bits-long}
 
 eureka:
   client:
@@ -63,3 +67,16 @@ management:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      anthropic-api:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+  retry:
+    instances:
+      anthropic-api:
+        max-attempts: 3
+        wait-duration: 2s
