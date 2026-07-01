@@ -12,7 +12,9 @@ spring:
     password: ${DB_PASSWORD:careerai}
   jpa:
     hibernate:
-      ddl-auto: validate
+      # 'none', not 'validate': Hibernate schema validation rejects the pgvector `vector(1536)`
+      # columns (mapped via a custom UserType), so we rely on Flyway as the single source of truth.
+      ddl-auto: none
     open-in-view: false
   flyway:
     enabled: true
