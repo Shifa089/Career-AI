@@ -61,11 +61,6 @@ spring:
         options:
           model: text-embedding-3-small
           dimensions: 1536
-    vectorstore:
-      pgvector:
-        # We manage our own job_embeddings/resume_embeddings tables and query them with native SQL,
-        # so the Spring AI vector_store table must not be auto-created.
-        initialize-schema: false
 
 eureka:
   client:

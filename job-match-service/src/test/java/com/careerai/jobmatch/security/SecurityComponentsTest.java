@@ -10,11 +10,18 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Types;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class SecurityComponentsTest {
 
@@ -69,5 +76,30 @@ class SecurityComponentsTest {
         assertThat(type.returnedClass()).isEqualTo(float[].class);
         assertThat(type.equals(vector, new float[]{0.1f, -0.25f, 1.0f})).isTrue();
         assertThat(type.assemble(type.disassemble(vector), null)).containsExactly(vector);
+        assertThat(type.getSqlType()).isEqualTo(Types.OTHER);
+        assertThat(type.isMutable()).isTrue();
+        assertThat(type.hashCode(vector)).isEqualTo(type.hashCode(vector));
+        assertThat(type.deepCopy(null)).isNull();
+    }
+
+    @Test
+    void pgVectorType_readsFromResultSet() throws Exception {
+        ResultSet rs = mock(ResultSet.class);
+        when(rs.getObject(1)).thenReturn("[0.5,1.5]");
+        assertThat(new PgVectorType().nullSafeGet(rs, 1, null, null)).containsExactly(0.5f, 1.5f);
+
+        when(rs.getObject(1)).thenReturn(null);
+        assertThat(new PgVectorType().nullSafeGet(rs, 1, null, null)).isNull();
+    }
+
+    @Test
+    void pgVectorType_writesToPreparedStatement() throws Exception {
+        PreparedStatement ps = mock(PreparedStatement.class);
+
+        new PgVectorType().nullSafeSet(ps, new float[]{0.5f, 1.5f}, 1, null);
+        verify(ps).setObject(eq(1), any());
+
+        new PgVectorType().nullSafeSet(ps, null, 2, null);
+        verify(ps).setNull(2, Types.OTHER);
     }
 }
