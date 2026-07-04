@@ -13,48 +13,41 @@ spring:
       password: ${REDIS_PASSWORD:}
   cloud:
     gateway:
+      # Explicit routes only (defined programmatically in GatewayConfig). Discovery auto-routing is
+      # disabled so registered services are not silently exposed at /{service-id}/**.
       discovery:
         locator:
-          enabled: true
+          enabled: false
           lower-case-service-id: true
       default-filters:
-        - name: RequestRateLimiter
-          args:
-            redis-rate-limiter.replenishRate: 10
-            redis-rate-limiter.burstCapacity: 20
-      routes:
-        - id: auth-service
-          uri: lb://AUTH-SERVICE
-          predicates:
-            - Path=/api/auth/**
-        - id: resume-service
-          uri: lb://RESUME-SERVICE
-          predicates:
-            - Path=/api/resumes/**
-        - id: interview-service
-          uri: lb://INTERVIEW-SERVICE
-          predicates:
-            - Path=/api/interviews/**
-        - id: job-match-service
-          uri: lb://JOB-MATCH-SERVICE
-          predicates:
-            - Path=/api/jobs/**
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          secret: ${JWT_SECRET:change-me-in-production-this-must-be-at-least-256-bits-long}
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+      httpclient:
+        connect-timeout: 5000
+        response-timeout: 30s
+
+# HS256 secret shared with auth-service (which mints the tokens) and every downstream service.
+jwt:
+  secret: ${JWT_SECRET:change-me-in-production-this-must-be-at-least-256-bits-long}
+
+# Custom per-user token bucket (see RateLimitFilter). Not Spring Gateway's RequestRateLimiter.
+gateway:
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}
+  rate-limit:
+    authenticated-rpm: 100
+    unauthenticated-rpm: 20
 
 eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus,gateway
+        include: health,info,prometheus,metrics,gateway
   endpoint:
     health:
       show-details: always
@@ -68,6 +61,15 @@ management:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+    urls:
+      - name: auth-service
+        url: /v3/api-docs/auth-service
+      - name: resume-service
+        url: /v3/api-docs/resume-service
+      - name: interview-service
+        url: /v3/api-docs/interview-service
+      - name: job-match-service
+        url: /v3/api-docs/job-match-service
 
 resilience4j:
   circuitbreaker:
@@ -76,3 +78,32 @@ resilience4j:
         sliding-window-size: 10
         failure-rate-threshold: 50
         wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+    instances:
+      auth-cb:
+        base-config: default
+        wait-duration-in-open-state: 10s
+      resume-cb:
+        base-config: default
+        wait-duration-in-open-state: 30s
+      interview-cb:
+        base-config: default
+        wait-duration-in-open-state: 30s
+      jobmatch-cb:
+        base-config: default
+        wait-duration-in-open-state: 30s
+  timelimiter:
+    configs:
+      # The reactive circuit-breaker starter wraps every call in a TimeLimiter that defaults to 1s;
+      # override it so slow downstreams (LLM calls) don't trip fallbacks spuriously.
+      default:
+        timeout-duration: 30s
+    instances:
+      auth-cb:
+        timeout-duration: 5s
+      resume-cb:
+        timeout-duration: 60s
+      interview-cb:
+        timeout-duration: 30s
+      jobmatch-cb:
+        timeout-duration: 30s
