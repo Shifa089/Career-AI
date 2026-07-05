@@ -91,7 +91,7 @@ export default function DashboardPage() {
 
   const recentResumes = resumes?.slice(0, 5) ?? [];
   const recentSessions = sessionsPage?.content?.slice(0, 5) ?? [];
-  const firstName = user?.fullName?.split(' ')[0] ?? 'there';
+  const firstName = user?.firstName ?? 'there';
 
   return (
     <AppLayout>

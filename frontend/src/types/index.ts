@@ -41,7 +41,7 @@ export interface Page<T> {
 // Enums (string unions matching backend @Enumerated(STRING) names)
 // ---------------------------------------------------------------------------
 
-export type RoleName = 'ROLE_USER' | 'ROLE_ADMIN';
+export type RoleName = 'ROLE_USER' | 'ROLE_ADMIN' | 'ROLE_PREMIUM';
 export type AuthProvider = 'LOCAL' | 'GOOGLE' | 'GITHUB';
 
 export type ResumeStatus = 'UPLOADED' | 'PROCESSING' | 'ANALYSED' | 'FAILED';
@@ -53,13 +53,15 @@ export type SessionStatus = 'CREATED' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ABA
 export type MatchStatus = 'PENDING_REVIEW' | 'SAVED' | 'APPLIED' | 'REJECTED';
 
 // ---------------------------------------------------------------------------
-// Auth (assumed contract — see README)
+// Auth (matches auth-service com.careerai.auth.dto.response.UserResponse)
 // ---------------------------------------------------------------------------
 
 export interface User {
   id: string;
   email: string;
-  fullName: string;
+  firstName: string;
+  lastName: string;
+  profilePictureUrl?: string | null;
   roles: RoleName[];
   provider: AuthProvider;
   emailVerified: boolean;
@@ -82,7 +84,8 @@ export interface LoginRequest {
 export interface RegisterRequest {
   email: string;
   password: string;
-  fullName: string;
+  firstName: string;
+  lastName: string;
 }
 
 export interface ForgotPasswordRequest {
@@ -90,12 +93,15 @@ export interface ForgotPasswordRequest {
 }
 
 export interface ResetPasswordRequest {
-  token: string;
+  email: string;
+  otp: string;
   newPassword: string;
 }
 
 export interface UpdateProfileRequest {
-  fullName: string;
+  firstName: string;
+  lastName: string;
+  profilePictureUrl?: string | null;
 }
 
 // ---------------------------------------------------------------------------

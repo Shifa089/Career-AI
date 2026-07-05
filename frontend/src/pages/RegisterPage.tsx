@@ -44,9 +44,12 @@ export default function RegisterPage() {
       toast.error('Please accept the terms to continue');
       return;
     }
-    // Backend stores a single full_name column.
-    const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
-    register.mutate({ email, password, fullName });
+    register.mutate({
+      email,
+      password,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+    });
   };
 
   return (

@@ -18,7 +18,8 @@ export const authApi = {
   refreshToken: (refreshToken: string) =>
     api.post<unknown, AuthResponse>('/auth/refresh', { refreshToken }),
 
-  logout: () => api.post<unknown, void>('/auth/logout').catch(() => undefined),
+  logout: (refreshToken: string) =>
+    api.post<unknown, void>('/auth/logout', { refreshToken }).catch(() => undefined),
 
   forgotPassword: (payload: ForgotPasswordRequest) =>
     api.post<unknown, void>('/auth/forgot-password', payload),
@@ -28,7 +29,7 @@ export const authApi = {
 
   getMe: () => api.get<unknown, User>('/users/me'),
 
-  updateProfile: (payload: UpdateProfileRequest) => api.patch<unknown, User>('/users/me', payload),
+  updateProfile: (payload: UpdateProfileRequest) => api.put<unknown, User>('/users/me', payload),
 };
 
 /** OAuth2 authorization-code entry points (full-page redirect through the gateway). */
