@@ -32,7 +32,8 @@ export default function OAuth2CallbackPage() {
     const provisional: User = {
       id: claims?.userId ?? '',
       email: claims?.sub ?? '',
-      fullName: claims?.sub?.split('@')[0] ?? 'User',
+      firstName: claims?.sub?.split('@')[0] ?? 'User',
+      lastName: '',
       roles: (claims?.roles as RoleName[]) ?? ['ROLE_USER'],
       provider: 'GOOGLE',
       emailVerified: true,

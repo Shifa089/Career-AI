@@ -4,20 +4,24 @@ import AppLayout from '../components/common/AppLayout';
 import PageHeader from '../components/common/PageHeader';
 import { useAuthStore } from '../store/authStore';
 import { useCurrentUser, useLogout, useUpdateProfile } from '../hooks/useAuth';
-import { formatEnum, initialsFromName } from '../utils/formatters';
+import { formatEnum, fullNameOf, initialsFromName } from '../utils/formatters';
 
 export default function ProfilePage() {
   useCurrentUser();
   const user = useAuthStore((s) => s.user);
   const updateProfile = useUpdateProfile();
   const logout = useLogout();
-  const [fullName, setFullName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
 
   useEffect(() => {
-    if (user?.fullName) setFullName(user.fullName);
-  }, [user?.fullName]);
+    if (user?.firstName) setFirstName(user.firstName);
+    if (user?.lastName) setLastName(user.lastName);
+  }, [user?.firstName, user?.lastName]);
 
-  const dirty = fullName.trim() !== (user?.fullName ?? '') && fullName.trim().length > 0;
+  const dirty =
+    firstName.trim().length > 0 &&
+    (firstName.trim() !== (user?.firstName ?? '') || lastName.trim() !== (user?.lastName ?? ''));
 
   return (
     <AppLayout>
@@ -31,10 +35,10 @@ export default function ProfilePage() {
         {/* Identity card */}
         <div className="card flex flex-col items-center p-6 text-center">
           <span className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-primary-600 to-accent-500 text-2xl font-bold text-white">
-            {initialsFromName(user?.fullName)}
+            {initialsFromName(fullNameOf(user))}
           </span>
           <h2 className="mt-4 text-lg font-semibold text-gray-900 dark:text-gray-100">
-            {user?.fullName}
+            {fullNameOf(user)}
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">{user?.email}</p>
           <div className="mt-3 flex flex-wrap justify-center gap-2">
@@ -57,20 +61,39 @@ export default function ProfilePage() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              if (dirty) updateProfile.mutate({ fullName: fullName.trim() });
+              if (dirty) {
+                updateProfile.mutate({
+                  firstName: firstName.trim(),
+                  lastName: lastName.trim(),
+                  profilePictureUrl: user?.profilePictureUrl ?? null,
+                });
+              }
             }}
             className="space-y-4"
           >
-            <div>
-              <label htmlFor="fullName" className="label">
-                Full name
-              </label>
-              <input
-                id="fullName"
-                className="input"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-              />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="firstName" className="label">
+                  First name
+                </label>
+                <input
+                  id="firstName"
+                  className="input"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                />
+              </div>
+              <div>
+                <label htmlFor="lastName" className="label">
+                  Last name
+                </label>
+                <input
+                  id="lastName"
+                  className="input"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                />
+              </div>
             </div>
 
             <div>

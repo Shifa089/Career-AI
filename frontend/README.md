@@ -44,10 +44,13 @@ Start the backend first: `docker compose up -d` then the services (discovery →
 - Resume upload returns **202** and analysis runs async — the UI polls `/analysis` until `ANALYSED`.
 - The interview flow is fully WebSocket-driven (STOMP over SockJS).
 
-> **Auth note:** `auth-service` was not yet implemented when this frontend was built. The auth API layer
-> targets a standard JWT contract (`POST /auth/login|register|refresh` → `{ accessToken, refreshToken, user }`)
-> consistent with the gateway's verified claim contract (`sub=email`, `userId`, `roles`, `type=ACCESS`).
-> Adjust `src/api/auth.ts` / `src/types/index.ts` if the implemented contract differs.
+> **Auth note:** `src/api/auth.ts` / `src/types/index.ts` are reconciled with the implemented
+> `auth-service` (Phase 1). The `User`/`UserResponse` shape uses `firstName` + `lastName` +
+> `profilePictureUrl` (not a single `fullName`); `POST /auth/register` takes `{ email, password,
+> firstName, lastName }`; `POST /auth/logout` requires a `{ refreshToken }` body; profile updates
+> use `PUT /users/me` with `{ firstName, lastName, profilePictureUrl? }`; password reset is
+> `{ email, otp, newPassword }`. Tokens still carry the gateway claim contract (`sub=email`,
+> `userId`, `roles`, `type=ACCESS`). Use `fullNameOf(user)` from `utils/formatters` for display.
 
 ## Structure
 

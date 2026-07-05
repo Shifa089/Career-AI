@@ -5,7 +5,7 @@ import { LogOut, Moon, Sparkles, Sun, User as UserIcon } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useLogout } from '../../hooks/useAuth';
 import { useTheme } from '../../hooks/useTheme';
-import { initialsFromName } from '../../utils/formatters';
+import { fullNameOf, initialsFromName } from '../../utils/formatters';
 
 interface NavbarProps {
   variant?: 'app' | 'public';
@@ -52,10 +52,10 @@ export default function Navbar({ variant = 'app' }: NavbarProps) {
             <Menu as="div" className="relative">
               <Menu.Button className="flex items-center gap-2 rounded-full p-1 pr-2 transition hover:bg-gray-100 dark:hover:bg-gray-800">
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-600 text-xs font-semibold text-white">
-                  {initialsFromName(user?.fullName)}
+                  {initialsFromName(fullNameOf(user))}
                 </span>
                 <span className="hidden text-sm font-medium text-gray-700 dark:text-gray-200 sm:block">
-                  {user?.fullName ?? 'Account'}
+                  {fullNameOf(user) || 'Account'}
                 </span>
               </Menu.Button>
               <Transition
@@ -70,7 +70,7 @@ export default function Navbar({ variant = 'app' }: NavbarProps) {
                 <Menu.Items className="absolute right-0 mt-2 w-52 origin-top-right overflow-hidden rounded-xl border border-gray-100 bg-white py-1 shadow-lg focus:outline-none dark:border-gray-800 dark:bg-gray-900">
                   <div className="border-b border-gray-100 px-4 py-3 dark:border-gray-800">
                     <p className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
-                      {user?.fullName}
+                      {fullNameOf(user)}
                     </p>
                     <p className="truncate text-xs text-gray-500 dark:text-gray-400">
                       {user?.email}

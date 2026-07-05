@@ -19,7 +19,7 @@ export function useLogin() {
     mutationFn: (payload: LoginRequest) => authApi.login(payload),
     onSuccess: (auth) => {
       setAuth(auth.user, auth.accessToken, auth.refreshToken);
-      toast.success(`Welcome back, ${auth.user.fullName.split(' ')[0]}!`);
+      toast.success(`Welcome back, ${auth.user.firstName}!`);
       navigate('/dashboard', { replace: true });
     },
     onError: (err) => toast.error(getErrorMessage(err)),
@@ -45,7 +45,7 @@ export function useLogout() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () => authApi.logout(),
+    mutationFn: () => authApi.logout(useAuthStore.getState().refreshToken ?? ''),
     onSettled: () => {
       clearAuth();
       queryClient.clear();

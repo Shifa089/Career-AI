@@ -1,5 +1,13 @@
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
-import type { MatchStatus, ResumeStatus, SessionStatus } from '../types';
+import type { MatchStatus, ResumeStatus, SessionStatus, User } from '../types';
+
+/** Join a user's first/last name into a single display string. */
+export function fullNameOf(
+  user: Pick<User, 'firstName' | 'lastName'> | null | undefined,
+): string {
+  if (!user) return '';
+  return `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim();
+}
 
 /** Safely parse an ISO string (backend LocalDateTime has no zone → treat as local). */
 function toDate(value: string | number | Date | null | undefined): Date | null {
