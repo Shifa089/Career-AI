@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: job-match-service
+  namespace: careerai
+  labels:
+    app: job-match-service
+    app.kubernetes.io/part-of: careerai
+spec:
+  type: ClusterIP
+  selector:
+    app: job-match-service
+  ports:
+    - name: http
+      port: 8084
+      targetPort: 8084

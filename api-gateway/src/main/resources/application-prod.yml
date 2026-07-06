@@ -11,10 +11,14 @@ eureka:
       defaultZone: ${EUREKA_URL}
 
 management:
+  endpoint:
+    env:
+      enabled: false
   tracing:
     sampling:
       probability: 0.1
 
 logging:
   level:
-    org.springframework.cloud.gateway: INFO
+    com.careerai.gateway: INFO
+    org.springframework.cloud.gateway: WARN

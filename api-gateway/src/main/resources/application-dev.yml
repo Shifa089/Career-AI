@@ -11,5 +11,6 @@ eureka:
 
 logging:
   level:
+    com.careerai.gateway: DEBUG
     org.springframework.cloud.gateway: DEBUG
     reactor.netty: INFO

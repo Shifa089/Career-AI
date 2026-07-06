@@ -1,0 +1,49 @@
+{
+  "info": {
+    "name": "CareerAI Staging Smoke E2E",
+    "description": "Minimal end-to-end smoke collection run by Newman against the staging environment. Extend with real auth/resume/interview/job-match flows as they stabilise.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" }
+  ],
+  "item": [
+    {
+      "name": "Gateway health is UP",
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/actuator/health", "host": ["{{baseUrl}}"], "path": ["actuator", "health"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));",
+              "pm.test('status is UP', () => pm.expect(pm.response.json().status).to.eql('UP'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth service reachable via gateway",
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/auth/actuator/health", "host": ["{{baseUrl}}"], "path": ["auth", "actuator", "health"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

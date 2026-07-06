@@ -16,7 +16,7 @@
     <description>Authentication and authorization - Spring Security 6, JWT, OAuth2</description>
 
     <properties>
-        <jib.image.name>ghcr.io/careerai/auth-service</jib.image.name>
+        <jib.image.name>ghcr.io/shifa089/careerai/auth-service</jib.image.name>
     </properties>
 
     <dependencies>
@@ -96,6 +96,10 @@
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>net.logstash.logback</groupId>
+            <artifactId>logstash-logback-encoder</artifactId>
         </dependency>
         <dependency>
             <groupId>io.micrometer</groupId>

@@ -1,0 +1,15 @@
+# Railway deployment config for api-gateway.
+# The image is built by GitHub Actions (Jib) and published to
+# ghcr.io/shifa089/careerai/api-gateway:latest — set the Railway service source
+# to that image. This file pins runtime health-check and restart behaviour.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/actuator/health"
+healthcheckTimeout = 60
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+numReplicas = 1
