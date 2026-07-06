@@ -51,6 +51,7 @@
         <pgvector.version>0.1.6</pgvector.version>
         <anthropic-java.version>1.2.0</anthropic-java.version>
         <archunit.version>1.3.0</archunit.version>
+        <logstash-logback-encoder.version>8.0</logstash-logback-encoder.version>
 
         <!-- Plugin versions -->
         <jib.version>3.4.4</jib.version>
@@ -63,7 +64,7 @@
         <jacoco.skip>false</jacoco.skip>
 
         <!-- Jib defaults (overridable per-module) -->
-        <jib.image.name>ghcr.io/careerai/${project.artifactId}</jib.image.name>
+        <jib.image.name>ghcr.io/shifa089/careerai/${project.artifactId}</jib.image.name>
     </properties>
 
     <dependencyManagement>
@@ -181,6 +182,13 @@
                 <artifactId>archunit-junit5</artifactId>
                 <version>${archunit.version}</version>
                 <scope>test</scope>
+            </dependency>
+
+            <!-- Structured (JSON) logging for ELK -->
+            <dependency>
+                <groupId>net.logstash.logback</groupId>
+                <artifactId>logstash-logback-encoder</artifactId>
+                <version>${logstash-logback-encoder.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

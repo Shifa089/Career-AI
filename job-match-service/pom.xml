@@ -16,7 +16,7 @@
     <description>RAG pipeline, pgvector semantic job matching</description>
 
     <properties>
-        <jib.image.name>ghcr.io/careerai/job-match-service</jib.image.name>
+        <jib.image.name>ghcr.io/shifa089/careerai/job-match-service</jib.image.name>
     </properties>
 
     <dependencies>
@@ -125,6 +125,10 @@
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>net.logstash.logback</groupId>
+            <artifactId>logstash-logback-encoder</artifactId>
         </dependency>
         <dependency>
             <groupId>io.micrometer</groupId>

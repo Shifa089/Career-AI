@@ -16,7 +16,7 @@
     <description>Spring Cloud Gateway - edge router, JWT pre-filter, rate limiting</description>
 
     <properties>
-        <jib.image.name>ghcr.io/careerai/api-gateway</jib.image.name>
+        <jib.image.name>ghcr.io/shifa089/careerai/api-gateway</jib.image.name>
     </properties>
 
     <dependencies>
@@ -69,6 +69,10 @@
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>net.logstash.logback</groupId>
+            <artifactId>logstash-logback-encoder</artifactId>
         </dependency>
         <dependency>
             <groupId>io.micrometer</groupId>

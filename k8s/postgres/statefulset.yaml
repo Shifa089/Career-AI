@@ -1,0 +1,117 @@
+# Self-hosted PostgreSQL with the pgvector extension.
+# For production prefer a managed offering (AWS RDS / Aurora with pgvector) and
+# point the services' DB_HOST/DB_PASSWORD at it instead of this StatefulSet.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-initdb
+  namespace: careerai
+data:
+  # Create one database per service and enable the required extensions.
+  init.sql: |
+    CREATE DATABASE auth_db;
+    CREATE DATABASE resume_db;
+    CREATE DATABASE interview_db;
+    CREATE DATABASE jobmatch_db;
+    \connect resume_db
+    CREATE EXTENSION IF NOT EXISTS vector;
+    CREATE EXTENSION IF NOT EXISTS pgcrypto;
+    \connect jobmatch_db
+    CREATE EXTENSION IF NOT EXISTS vector;
+    CREATE EXTENSION IF NOT EXISTS pgcrypto;
+    \connect auth_db
+    CREATE EXTENSION IF NOT EXISTS pgcrypto;
+    \connect interview_db
+    CREATE EXTENSION IF NOT EXISTS pgcrypto;
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: careerai
+  labels:
+    app: postgres
+spec:
+  clusterIP: None
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: careerai
+  labels:
+    app: postgres
+    app.kubernetes.io/part-of: careerai
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: pgvector/pgvector:pg16
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: careerai-config
+                  key: DB_USERNAME
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: careerai-secrets
+                  key: DB_PASSWORD
+            - name: POSTGRES_DB
+              value: postgres
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: initdb
+              mountPath: /docker-entrypoint-initdb.d
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "careerai"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "careerai"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      volumes:
+        - name: initdb
+          configMap:
+            name: postgres-initdb
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi

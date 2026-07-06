@@ -1,0 +1,138 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly, Monday 03:00 UTC.
+    - cron: "0 3 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  security-events: write
+
+env:
+  JAVA_VERSION: "21"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. OWASP dependency-check (known-vulnerable dependencies).
+  # ---------------------------------------------------------------------------
+  dependency-check:
+    name: OWASP Dependency Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      - name: Run dependency-check
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: >-
+          mvn -B org.owasp:dependency-check-maven:check
+          -DfailBuildOnCVSS=8
+          -DnvdApiKey=${NVD_API_KEY}
+
+      - name: Upload dependency-check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: "**/target/dependency-check-report.html"
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # 2. Trivy container scan of each pushed image.
+  # ---------------------------------------------------------------------------
+  container-scan:
+    name: Trivy Container Scan (${{ matrix.module }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - api-gateway
+          - auth-service
+          - resume-service
+          - interview-service
+          - job-match-service
+          - frontend
+    steps:
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ghcr.io/shifa089/careerai/${{ matrix.module }}:latest
+          format: sarif
+          output: trivy-${{ matrix.module }}.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-${{ matrix.module }}.sarif
+          category: trivy-${{ matrix.module }}
+
+  # ---------------------------------------------------------------------------
+  # 3. CodeQL static analysis (Java + TypeScript).
+  # ---------------------------------------------------------------------------
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [java-kotlin, javascript-typescript]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        if: matrix.language == 'java-kotlin'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Build (Java)
+        if: matrix.language == 'java-kotlin'
+        run: mvn -B -DskipTests compile
+
+      - name: Autobuild (JS/TS)
+        if: matrix.language == 'javascript-typescript'
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  # ---------------------------------------------------------------------------
+  # 4. Gitleaks secret detection across full history.
+  # ---------------------------------------------------------------------------
+  secret-scan:
+    name: Gitleaks Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
