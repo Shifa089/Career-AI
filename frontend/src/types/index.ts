@@ -41,7 +41,7 @@ export interface Page<T> {
 // Enums (string unions matching backend @Enumerated(STRING) names)
 // ---------------------------------------------------------------------------
 
-export type RoleName = 'ROLE_USER' | 'ROLE_ADMIN' | 'ROLE_PREMIUM';
+export type RoleName = 'ROLE_USER' | 'ROLE_ADMIN' | 'ROLE_PREMIUM' | 'ROLE_COMPANY';
 export type AuthProvider = 'LOCAL' | 'GOOGLE' | 'GITHUB';
 
 export type ResumeStatus = 'UPLOADED' | 'PROCESSING' | 'ANALYSED' | 'FAILED';
@@ -212,7 +212,7 @@ export interface CreateSessionRequest {
 }
 
 // WebSocket incoming (server → client)
-export type WsMessageType = 'QUESTION' | 'FEEDBACK' | 'SESSION_COMPLETE' | 'ERROR';
+export type WsMessageType = 'QUESTION' | 'FEEDBACK' | 'HINT' | 'SESSION_COMPLETE' | 'ERROR';
 
 export interface AnswerFeedbackPayload {
   score: number;
@@ -249,7 +249,38 @@ export interface JobListing {
   salaryRange: string | null;
   experienceLevel: string | null;
   sourceUrl: string | null;
+  source?: string | null;
+  employerId?: string | null;
+  active?: boolean;
   postedAt: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Employer / company
+// ---------------------------------------------------------------------------
+
+export interface CompanyRegisterRequest {
+  companyName: string;
+  website?: string;
+  industry?: string;
+  companySize?: string;
+  companyDescription?: string;
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+}
+
+export interface CreateJobRequest {
+  title: string;
+  company: string;
+  location?: string;
+  jobType?: string;
+  descriptionText: string;
+  requiredSkills?: string[];
+  niceToHaveSkills?: string[];
+  salaryRange?: string;
+  experienceLevel?: string;
 }
 
 export interface JobMatch {

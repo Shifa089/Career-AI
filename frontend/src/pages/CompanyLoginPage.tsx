@@ -1,24 +1,16 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Eye, EyeOff, Lock, Mail, Sparkles } from 'lucide-react';
-import { useLogin } from '../hooks/useAuth';
-import OAuthButtons from '../components/common/OAuthButtons';
+import { Link } from 'react-router-dom';
+import { Building2, Eye, EyeOff, Lock, Mail } from 'lucide-react';
+import { useCompanyLogin } from '../hooks/useCompany';
 
-interface LocationState {
-  from?: string;
-}
-
-export default function LoginPage() {
+export default function CompanyLoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const login = useLogin();
-  const location = useLocation();
-  const from = (location.state as LocationState | null)?.from;
+  const login = useCompanyLogin();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
     login.mutate({ email, password });
   };
 
@@ -26,29 +18,25 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12 dark:bg-gray-950">
       <div className="w-full max-w-md">
         <Link to="/" className="mb-8 flex items-center justify-center gap-2">
-          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary-600 to-accent-500 text-white">
-            <Sparkles size={20} />
+          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-accent-600 to-primary-500 text-white">
+            <Building2 size={20} />
           </span>
           <span className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">
             Career<span className="text-primary-600 dark:text-primary-400">AI</span>
+            <span className="ml-1 text-sm font-medium text-gray-400">for Employers</span>
           </span>
         </Link>
 
         <div className="card p-8">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Welcome back</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Employer sign in</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Sign in to continue your job search.
+            Post jobs and reach matched candidates.
           </p>
-          {from && (
-            <p className="mt-3 rounded-lg bg-primary-50 px-3 py-2 text-xs text-primary-700 dark:bg-primary-500/10 dark:text-primary-300">
-              Please sign in to access that page.
-            </p>
-          )}
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <div>
               <label htmlFor="email" className="label">
-                Email
+                Work email
               </label>
               <div className="relative">
                 <Mail size={17} className="pointer-events-none absolute left-3 top-3 text-gray-400" />
@@ -57,7 +45,7 @@ export default function LoginPage() {
                   type="email"
                   autoComplete="email"
                   className="input pl-10"
-                  placeholder="you@example.com"
+                  placeholder="hr@company.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -76,7 +64,7 @@ export default function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   className="input px-10"
-                  placeholder="••••••••"
+                  placeholder="Your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -97,31 +85,22 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="my-6 flex items-center gap-3">
-            <div className="h-px flex-1 bg-gray-200 dark:bg-gray-800" />
-            <span className="text-xs text-gray-400">or continue with</span>
-            <div className="h-px flex-1 bg-gray-200 dark:bg-gray-800" />
-          </div>
-
-          <OAuthButtons />
-
           <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
-            Don’t have an account?{' '}
-            <Link to="/register" className="font-semibold text-primary-600 hover:underline dark:text-primary-400">
-              Sign up
+            New employer?{' '}
+            <Link
+              to="/company/register"
+              className="font-semibold text-primary-600 hover:underline dark:text-primary-400"
+            >
+              Create a company account
+            </Link>
+          </p>
+          <p className="mt-2 text-center text-sm text-gray-500 dark:text-gray-400">
+            Looking for a job?{' '}
+            <Link to="/login" className="font-semibold text-primary-600 hover:underline dark:text-primary-400">
+              Candidate sign in
             </Link>
           </p>
         </div>
-
-        <p className="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
-          Hiring?{' '}
-          <Link
-            to="/company/login"
-            className="font-semibold text-primary-600 hover:underline dark:text-primary-400"
-          >
-            Employer sign in
-          </Link>
-        </p>
       </div>
     </div>
   );

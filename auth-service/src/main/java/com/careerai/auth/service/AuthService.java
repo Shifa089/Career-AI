@@ -1,5 +1,6 @@
 package com.careerai.auth.service;
 
+import com.careerai.auth.dto.request.CompanyRegisterRequest;
 import com.careerai.auth.dto.request.LoginRequest;
 import com.careerai.auth.dto.request.RefreshTokenRequest;
 import com.careerai.auth.dto.request.RegisterRequest;
@@ -17,7 +18,11 @@ public interface AuthService {
 
     AuthResponse register(RegisterRequest request);
 
+    AuthResponse registerCompany(CompanyRegisterRequest request);
+
     AuthResponse login(LoginRequest request);
+
+    AuthResponse loginCompany(LoginRequest request);
 
     AuthResponse refreshToken(RefreshTokenRequest request);
 

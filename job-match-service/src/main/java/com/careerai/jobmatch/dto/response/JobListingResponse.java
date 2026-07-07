@@ -20,5 +20,8 @@ public record JobListingResponse(
         String salaryRange,
         String experienceLevel,
         String sourceUrl,
+        String source,
+        UUID employerId,
+        boolean active,
         LocalDateTime postedAt) {
 }
