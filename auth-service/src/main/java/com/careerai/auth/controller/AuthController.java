@@ -1,5 +1,6 @@
 package com.careerai.auth.controller;
 
+import com.careerai.auth.dto.request.CompanyRegisterRequest;
 import com.careerai.auth.dto.request.ForgotPasswordRequest;
 import com.careerai.auth.dto.request.LoginRequest;
 import com.careerai.auth.dto.request.RefreshTokenRequest;
@@ -49,6 +50,21 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Login successful", authService.login(request)));
+    }
+
+    @Operation(summary = "Register a new company / employer account")
+    @PostMapping("/company/register")
+    public ResponseEntity<ApiResponse<AuthResponse>> registerCompany(
+            @Valid @RequestBody CompanyRegisterRequest request) {
+        AuthResponse response = authService.registerCompany(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Company registration successful", response));
+    }
+
+    @Operation(summary = "Authenticate a company / employer account")
+    @PostMapping("/company/login")
+    public ResponseEntity<ApiResponse<AuthResponse>> loginCompany(@Valid @RequestBody LoginRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Login successful", authService.loginCompany(request)));
     }
 
     @Operation(summary = "Exchange a refresh token for a new access/refresh pair")

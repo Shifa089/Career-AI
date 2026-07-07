@@ -10,6 +10,10 @@ import InterviewPage from './pages/InterviewPage';
 import InterviewSessionPage from './pages/InterviewSessionPage';
 import JobMatchPage from './pages/JobMatchPage';
 import ProfilePage from './pages/ProfilePage';
+import CompanyLoginPage from './pages/CompanyLoginPage';
+import CompanyRegisterPage from './pages/CompanyRegisterPage';
+import EmployerDashboardPage from './pages/EmployerDashboardPage';
+import PostJobPage from './pages/PostJobPage';
 
 export default function App() {
   return (
@@ -19,6 +23,10 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/oauth2/callback" element={<OAuth2CallbackPage />} />
+
+      {/* Employer / company (public auth) */}
+      <Route path="/company/login" element={<CompanyLoginPage />} />
+      <Route path="/company/register" element={<CompanyRegisterPage />} />
 
       {/* Protected */}
       <Route
@@ -66,6 +74,24 @@ export default function App() {
         element={
           <ProtectedRoute>
             <ProfilePage />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Employer / company (role-gated) */}
+      <Route
+        path="/employer/dashboard"
+        element={
+          <ProtectedRoute requiredRole="ROLE_COMPANY">
+            <EmployerDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/employer/jobs/new"
+        element={
+          <ProtectedRoute requiredRole="ROLE_COMPANY">
+            <PostJobPage />
           </ProtectedRoute>
         }
       />

@@ -48,9 +48,9 @@ public class InterviewWebSocketController {
             SubmitAnswerResult result = interviewSessionService.submitAnswer(
                     sessionId, new SubmitAnswerRequest(questionId, message.content()), userId);
 
-            send(principal, sessionId, WsOutgoingMessage.Type.FEEDBACK,
-                    Map.of("score", result.answerScore(), "feedback", result.answerFeedback()));
-
+            // Per-answer scores are computed and persisted server-side but intentionally NOT
+            // streamed back mid-interview. The candidate only sees a single consolidated report
+            // once every question has been answered (SESSION_COMPLETE).
             if (result.completed()) {
                 send(principal, sessionId, WsOutgoingMessage.Type.SESSION_COMPLETE, result.finalFeedback());
             } else {
@@ -65,7 +65,7 @@ public class InterviewWebSocketController {
                      Principal principal) {
         dispatch(sessionId, principal, userId -> {
             String hint = interviewSessionService.generateHint(sessionId, userId, message.content());
-            send(principal, sessionId, WsOutgoingMessage.Type.FEEDBACK, Map.of("hint", hint));
+            send(principal, sessionId, WsOutgoingMessage.Type.HINT, Map.of("hint", hint));
         });
     }
 

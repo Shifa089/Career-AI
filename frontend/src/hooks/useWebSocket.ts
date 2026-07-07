@@ -33,7 +33,7 @@ export function useWebSocket(sessionId: string | undefined): UseWebSocketResult 
   const {
     addMessage,
     setCurrentQuestion,
-    setAnswerFeedback,
+    setHint,
     setFinalFeedback,
     setConnected,
     setLoading,
@@ -55,14 +55,10 @@ export function useWebSocket(sessionId: string | undefined): UseWebSocketResult 
           setCurrentQuestion(msg.payload as InterviewQuestion);
           setLoading(false);
           break;
-        case 'FEEDBACK': {
+        case 'HINT': {
           const payload = msg.payload as Record<string, unknown>;
-          // Answer feedback carries { score, feedback }; hint carries { hint }.
-          if ('score' in payload || 'feedback' in payload) {
-            setAnswerFeedback({
-              score: Number(payload.score ?? 0),
-              feedback: String(payload.feedback ?? ''),
-            });
+          if ('hint' in payload) {
+            setHint(String(payload.hint ?? ''));
           }
           break;
         }
@@ -76,7 +72,7 @@ export function useWebSocket(sessionId: string | undefined): UseWebSocketResult 
           break;
       }
     },
-    [addMessage, setCurrentQuestion, setAnswerFeedback, setFinalFeedback, setComplete, setLoading],
+    [addMessage, setCurrentQuestion, setHint, setFinalFeedback, setComplete, setLoading],
   );
 
   useEffect(() => {

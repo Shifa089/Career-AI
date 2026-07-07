@@ -24,8 +24,11 @@ public class ClaudeSkillGapServiceImpl implements SkillGapService {
     private static final String SKILL_GAP_PROMPT = """
             You are a career advisor. Analyse the skill gap for a candidate applying to %s. \
             Candidate skills: %s. Required skills: %s. \
+            For partialMatches, candidateLevel and requiredLevel MUST each be exactly one of \
+            these uppercase tokens (no other words): NONE, BEGINNER, INTERMEDIATE, ADVANCED, EXPERT. \
+            Include in partialMatches any required skill the candidate has some but not full proficiency in. \
             Respond ONLY in JSON: {"matchedSkills":[...],"missingSkills":[...],\
-            "partialMatches":[{"skill":"...","candidateLevel":"...","requiredLevel":"..."}],\
+            "partialMatches":[{"skill":"...","candidateLevel":"BEGINNER","requiredLevel":"ADVANCED"}],\
             "gapScore":0-100,"readinessLevel":"NOT_READY|NEEDS_WORK|ALMOST_READY|READY",\
             "learningPath":[{"skill":"...","priority":"HIGH|MEDIUM|LOW","estimatedWeeks":N,\
             "resources":[{"title":"...","url":"...","type":"COURSE|BOOK|TUTORIAL|PROJECT"}]}],\

@@ -7,5 +7,7 @@ package com.careerai.auth.domain.enums;
 public enum RoleName {
     ROLE_USER,
     ROLE_ADMIN,
-    ROLE_PREMIUM
+    ROLE_PREMIUM,
+    /** Employer / company HR account that can post jobs to the portal. */
+    ROLE_COMPANY
 }

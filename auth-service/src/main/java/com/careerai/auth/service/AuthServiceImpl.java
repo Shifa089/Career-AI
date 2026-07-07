@@ -1,10 +1,12 @@
 package com.careerai.auth.service;
 
 import com.careerai.auth.domain.RefreshToken;
+import com.careerai.auth.domain.entity.Company;
 import com.careerai.auth.domain.entity.Role;
 import com.careerai.auth.domain.entity.User;
 import com.careerai.auth.domain.enums.AuthProvider;
 import com.careerai.auth.domain.enums.RoleName;
+import com.careerai.auth.dto.request.CompanyRegisterRequest;
 import com.careerai.auth.dto.request.LoginRequest;
 import com.careerai.auth.dto.request.RefreshTokenRequest;
 import com.careerai.auth.dto.request.RegisterRequest;
@@ -17,6 +19,7 @@ import com.careerai.auth.exception.AuthException;
 import com.careerai.auth.exception.TokenException;
 import com.careerai.auth.exception.UserAlreadyExistsException;
 import com.careerai.auth.mapper.UserMapper;
+import com.careerai.auth.repository.CompanyRepository;
 import com.careerai.auth.repository.RoleRepository;
 import com.careerai.auth.repository.UserRepository;
 import com.careerai.auth.security.JwtTokenProvider;
@@ -51,6 +54,7 @@ public class AuthServiceImpl implements AuthService {
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
+    private final CompanyRepository companyRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider tokenProvider;
@@ -87,15 +91,77 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
+    public AuthResponse registerCompany(CompanyRegisterRequest request) {
+        if (userRepository.existsByEmail(request.email())) {
+            throw new UserAlreadyExistsException("An account with email " + request.email() + " already exists");
+        }
+        Role companyRole = roleRepository.findByName(RoleName.ROLE_COMPANY)
+                .orElseThrow(() -> new IllegalStateException("ROLE_COMPANY is not seeded"));
+
+        User user = User.builder()
+                .email(request.email())
+                .password(passwordEncoder.encode(request.password()))
+                .firstName(request.firstName())
+                .lastName(request.lastName())
+                .provider(AuthProvider.LOCAL)
+                .emailVerified(false)
+                .enabled(true)
+                .build();
+        user.addRole(companyRole);
+        User saved = userRepository.save(user);
+
+        Company company = Company.builder()
+                .name(request.companyName())
+                .website(request.website())
+                .industry(request.industry())
+                .companySize(request.companySize())
+                .description(request.companyDescription())
+                .ownerUserId(saved.getId())
+                .build();
+        companyRepository.save(company);
+
+        emailService.sendVerificationEmail(saved.getEmail(), UUID.randomUUID().toString());
+
+        return issueTokens(saved);
+    }
+
+    @Override
+    @Transactional
     public AuthResponse login(LoginRequest request) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.email(), request.password()));
-        User user = (User) authentication.getPrincipal();
+        User user = authenticate(request);
+        // Company accounts must use the dedicated employer login so the two portals stay separate.
+        if (hasRole(user, RoleName.ROLE_COMPANY)) {
+            throw new AuthException("This is a company account — please use the employer login", HttpStatus.FORBIDDEN);
+        }
 
         user.setLastLoginAt(LocalDateTime.now());
         userRepository.save(user);
 
         return issueTokens(user);
+    }
+
+    @Override
+    @Transactional
+    public AuthResponse loginCompany(LoginRequest request) {
+        User user = authenticate(request);
+        if (!hasRole(user, RoleName.ROLE_COMPANY)) {
+            throw new AuthException("This is not a company account — please use the candidate login", HttpStatus.FORBIDDEN);
+        }
+
+        user.setLastLoginAt(LocalDateTime.now());
+        userRepository.save(user);
+
+        return issueTokens(user);
+    }
+
+    private User authenticate(LoginRequest request) {
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(request.email(), request.password()));
+        return (User) authentication.getPrincipal();
+    }
+
+    private boolean hasRole(User user, RoleName roleName) {
+        return user.getRoles().stream().anyMatch(r -> r.getName() == roleName);
     }
 
     @Override

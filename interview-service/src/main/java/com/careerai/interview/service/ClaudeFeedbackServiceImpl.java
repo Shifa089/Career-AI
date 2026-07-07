@@ -24,15 +24,49 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ClaudeFeedbackServiceImpl implements FeedbackService {
 
+    /**
+     * System persona shared by both prompts. Establishes a rigorous, honest examiner so scores
+     * actually track answer quality instead of clustering around a bland middle.
+     */
+    private static final String EVALUATOR_SYSTEM = """
+            You are a rigorous, fair, and completely honest senior technical interviewer.
+            You grade strictly on the MERIT of the candidate's actual answer — never out of politeness.
+            A weak, vague, empty, or wrong answer MUST receive a low score; only genuinely strong,
+            correct, specific answers earn high scores. Do not anchor to any default number.
+            Use the FULL 0-100 range and make scores discriminating.
+
+            Scoring rubric (apply honestly):
+            - 0-15   : no answer, "I don't know", off-topic, or fundamentally incorrect.
+            - 16-35  : major misconceptions or mostly missing the point; barely relevant.
+            - 36-55  : partially correct but shallow, vague, or missing key required elements.
+            - 56-70  : mostly correct and relevant but lacks depth, precision, or concrete examples.
+            - 71-85  : solid, correct, well-structured answer covering the key points.
+            - 86-100 : excellent — correct, deep, precise, with concrete examples/trade-offs.
+            Reward correctness, specificity, structure, and real examples; penalise vagueness,
+            filler, hand-waving, and factual errors.
+            """;
+
     private static final String EVALUATE_PROMPT = """
-            You are evaluating a %s interview answer. Question: %s. Ideal answer elements: %s. \
-            Candidate's answer: %s. \
-            Respond ONLY in JSON: {"score":0-100,"feedback":"...","strengths":"...","improvements":"..."}
+            Evaluate this %s interview answer strictly against the rubric.
+            Question: %s
+            Key elements a strong answer should contain: %s
+            Candidate's answer: %s
+
+            Grade ONLY the candidate's answer above. If it is empty or says nothing of substance,
+            the score must be near zero. Respond ONLY in JSON, no prose, no markdown:
+            {"score":<0-100 integer>,"feedback":"<2-3 sentence honest assessment>",\
+            "strengths":"<what was actually good, or 'none' if nothing>",\
+            "improvements":"<specific, actionable gaps>"}
             """;
 
     private static final String FINAL_PROMPT = """
-            Analyse this completed %s interview for %s. Questions and scores: %s. \
-            Generate comprehensive feedback in JSON: {"technicalScore":0-100,"behaviouralScore":0-100,\
+            Produce an honest overall report for this completed %s interview for the role: %s.
+            Per-question difficulty and the score already awarded to each answer: %s
+
+            Base the overall scores on the actual per-answer scores above — do not inflate them.
+            If the per-answer scores are low, the overall scores must be correspondingly low.
+            Respond ONLY in JSON, no prose, no markdown:
+            {"technicalScore":0-100,"behaviouralScore":0-100,\
             "communicationScore":0-100,"problemSolvingScore":0-100,"overallScore":0-100,\
             "strongAreas":["..."],"improvementAreas":["..."],"detailedFeedback":"...",\
             "recommendedResources":[{"title":"...","url":"...","type":"BOOK|COURSE|ARTICLE"}]}
@@ -55,7 +89,7 @@ public class ClaudeFeedbackServiceImpl implements FeedbackService {
                 questionText,
                 StringUtils.hasText(idealAnswer) ? idealAnswer : "not provided",
                 StringUtils.hasText(userAnswer) ? userAnswer : "(no answer)");
-        String content = chatClient.prompt().user(prompt).call().content();
+        String content = chatClient.prompt().system(EVALUATOR_SYSTEM).user(prompt).call().content();
         return parse(content, AnswerEvaluation.class, "answer evaluation");
     }
 
@@ -71,7 +105,7 @@ public class ClaudeFeedbackServiceImpl implements FeedbackService {
                         q.getQuestionText()))
                 .collect(Collectors.joining(" | "));
         String prompt = FINAL_PROMPT.formatted(session.getType(), session.getJobTitle(), questionsJson);
-        String content = chatClient.prompt().user(prompt).call().content();
+        String content = chatClient.prompt().system(EVALUATOR_SYSTEM).user(prompt).call().content();
         return parse(content, FeedbackResult.class, "final feedback");
     }
 

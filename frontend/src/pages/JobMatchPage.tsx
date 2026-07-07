@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState } from 'react';
 import { Dialog, Tab, Transition } from '@headlessui/react';
-import { Briefcase, Search, SlidersHorizontal, X } from 'lucide-react';
+import { Briefcase, ChevronDown, Search, SlidersHorizontal, X } from 'lucide-react';
 import AppLayout from '../components/common/AppLayout';
 import PageHeader from '../components/common/PageHeader';
 import LoadingSpinner from '../components/common/LoadingSpinner';
@@ -19,6 +19,7 @@ export default function JobMatchPage() {
   const [resumeId, setResumeId] = useState('');
   const [minMatch, setMinMatch] = useState(0);
   const [statusFilter, setStatusFilter] = useState<MatchStatus | 'ALL'>('ALL');
+  const [filtersOpen, setFiltersOpen] = useState(true);
   const [gapMatch, setGapMatch] = useState<JobMatch | null>(null);
 
   const findMatches = useFindMatches();
@@ -86,39 +87,57 @@ export default function JobMatchPage() {
       </div>
 
       {/* Filters */}
-      <div className="card mb-6 flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
-        <div className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400">
-          <SlidersHorizontal size={16} /> Filters
-        </div>
-        <div className="flex flex-1 items-center gap-3">
-          <label htmlFor="minMatch" className="whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-            Min match: <span className="font-semibold text-primary-600 dark:text-primary-400">{minMatch}%</span>
-          </label>
-          <input
-            id="minMatch"
-            type="range"
-            min={0}
-            max={100}
-            step={5}
-            value={minMatch}
-            onChange={(e) => setMinMatch(Number(e.target.value))}
-            className="flex-1 accent-primary-600"
-          />
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {STATUS_FILTERS.map((s) => (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              className={`chip transition ${
-                statusFilter === s
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400'
-              }`}
-            >
-              {s === 'ALL' ? 'All' : matchStatusLabel(s)}
-            </button>
-          ))}
+      <div className="card mb-6 p-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((o) => !o)}
+            aria-expanded={filtersOpen}
+            aria-controls="filter-controls"
+            className="flex items-center gap-2 text-sm font-medium text-gray-600 transition hover:text-primary-600 dark:text-gray-300 dark:hover:text-primary-400"
+          >
+            <SlidersHorizontal size={16} /> Filters
+            <ChevronDown
+              size={15}
+              className={`transition-transform ${filtersOpen ? 'rotate-180' : ''}`}
+            />
+          </button>
+
+          {filtersOpen && (
+            <div id="filter-controls" className="flex flex-1 flex-col gap-4 sm:flex-row sm:items-center">
+              <div className="flex flex-1 items-center gap-3">
+                <label htmlFor="minMatch" className="whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  Min match:{' '}
+                  <span className="font-semibold text-primary-600 dark:text-primary-400">{minMatch}%</span>
+                </label>
+                <input
+                  id="minMatch"
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={minMatch}
+                  onChange={(e) => setMinMatch(Number(e.target.value))}
+                  className="flex-1 accent-primary-600"
+                />
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {STATUS_FILTERS.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setStatusFilter(s)}
+                    className={`chip transition ${
+                      statusFilter === s
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400'
+                    }`}
+                  >
+                    {s === 'ALL' ? 'All' : matchStatusLabel(s)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

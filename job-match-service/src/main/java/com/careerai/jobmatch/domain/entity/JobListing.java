@@ -1,6 +1,7 @@
 package com.careerai.jobmatch.domain.entity;
 
 import com.careerai.jobmatch.domain.enums.ExperienceLevel;
+import com.careerai.jobmatch.domain.enums.JobSource;
 import com.careerai.jobmatch.domain.enums.JobType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -75,6 +76,15 @@ public class JobListing {
 
     @Column(name = "external_id")
     private String externalId;
+
+    /** The company HR user who posted this job, when {@link #source} is {@code EMPLOYER}. */
+    @Column(name = "employer_id")
+    private UUID employerId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source", length = 20, nullable = false)
+    @Builder.Default
+    private JobSource source = JobSource.SEED;
 
     @Column(nullable = false)
     @Builder.Default

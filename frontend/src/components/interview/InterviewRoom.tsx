@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, LogOut, Wifi, WifiOff } from 'lucide-react';
+import { Lightbulb, Loader2, LogOut, Wifi, WifiOff } from 'lucide-react';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { useAbandonSession } from '../../hooks/useInterview';
 import { useInterviewStore } from '../../store/interviewStore';
@@ -8,7 +8,6 @@ import type { InterviewSession } from '../../types';
 import { formatEnum } from '../../utils/formatters';
 import QuestionCard from './QuestionCard';
 import AnswerInput from './AnswerInput';
-import FeedbackPanel from './FeedbackPanel';
 import SessionComplete from './SessionComplete';
 import LoadingSpinner from '../common/LoadingSpinner';
 
@@ -21,12 +20,12 @@ export default function InterviewRoom({ session }: InterviewRoomProps) {
   const abandon = useAbandonSession();
   const {
     currentQuestion,
-    lastAnswerFeedback,
+    hint,
     finalFeedback,
     isLoading,
     isComplete,
     setSession,
-    setAnswerFeedback,
+    setHint,
     clearSession,
   } = useInterviewStore();
 
@@ -48,7 +47,7 @@ export default function InterviewRoom({ session }: InterviewRoomProps) {
 
   const handleSubmit = (answer: string) => {
     if (!currentQuestion) return;
-    setAnswerFeedback(null);
+    setHint(null);
     sendAnswer(answer, currentQuestion.questionId);
   };
 
@@ -141,12 +140,13 @@ export default function InterviewRoom({ session }: InterviewRoomProps) {
             </div>
           )}
 
-          {lastAnswerFeedback && (
-            <div className="mt-6">
-              <FeedbackPanel
-                score={lastAnswerFeedback.score}
-                feedback={lastAnswerFeedback.feedback}
-              />
+          {hint && (
+            <div className="mt-6 flex gap-3 rounded-xl border border-amber-300/60 bg-amber-50 p-4 dark:border-amber-500/30 dark:bg-amber-500/10">
+              <Lightbulb className="mt-0.5 shrink-0 text-amber-500" size={18} />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">Hint</p>
+                <p className="mt-1 text-sm text-amber-900/90 dark:text-amber-100/90">{hint}</p>
+              </div>
             </div>
           )}
         </div>

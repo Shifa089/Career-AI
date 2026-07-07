@@ -13,6 +13,7 @@ public record WsOutgoingMessage(
     public enum Type {
         QUESTION,
         FEEDBACK,
+        HINT,
         SESSION_COMPLETE,
         ERROR
     }

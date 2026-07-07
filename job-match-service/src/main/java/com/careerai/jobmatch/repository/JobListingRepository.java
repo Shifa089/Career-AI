@@ -16,6 +16,10 @@ public interface JobListingRepository extends JpaRepository<JobListing, UUID> {
 
     List<JobListing> findByActiveTrue();
 
+    Page<JobListing> findByEmployerIdOrderByCreatedAtDesc(UUID employerId, Pageable pageable);
+
+    java.util.Optional<JobListing> findByIdAndEmployerId(UUID id, UUID employerId);
+
     /**
      * Free-text search over active listings by keyword (title/company/description) and location. A
      * {@code null} filter is treated as "no constraint".

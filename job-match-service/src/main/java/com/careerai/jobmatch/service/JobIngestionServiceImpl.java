@@ -160,6 +160,7 @@ public class JobIngestionServiceImpl implements JobIngestionService {
                 .jobType(inferJobType(job))
                 .sourceUrl(job.redirectUrl())
                 .externalId(externalId)
+                .source(com.careerai.jobmatch.domain.enums.JobSource.ADZUNA)
                 .active(true)
                 .build();
         JobListing saved = jobListingRepository.save(listing);
