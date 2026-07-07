@@ -52,6 +52,10 @@ app:
     access-token-expiry-ms: ${JWT_ACCESS_EXPIRY_MS:900000}
     refresh-token-expiry-ms: ${JWT_REFRESH_EXPIRY_MS:604800000}
   frontend-url: ${FRONTEND_URL:http://localhost:3000}
+  mail:
+    # From address for transactional email. Kept separate from spring.mail.username (blank for
+    # auth-less dev SMTP) so the From header is always a valid address.
+    from: ${MAIL_FROM:no-reply@careerai.com}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:${FRONTEND_URL:http://localhost:3000}}
 
@@ -59,6 +63,12 @@ eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+  instance:
+    # The gateway routes by the address a service registers here. Default to a resolvable
+    # localhost so single-machine dev works; the machine's canonical hostname can resolve
+    # (via ISP DNS) to a bogus public IP, which makes lb:// routing fail. Override in prod.
+    hostname: ${EUREKA_INSTANCE_HOSTNAME:localhost}
+    prefer-ip-address: ${EUREKA_PREFER_IP:false}
 
 management:
   endpoints:

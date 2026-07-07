@@ -261,21 +261,31 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         return interviewMapper.toFeedbackResponse(feedback);
     }
 
+    /**
+     * Publishes the {@code interview.completed} event. A broker outage must never fail session
+     * completion (the session + feedback are already persisted), so any Kafka error is logged and
+     * swallowed rather than propagated.
+     */
     private void publishCompleted(InterviewSession session, List<InterviewQuestion> questions) {
-        Set<String> skills = new LinkedHashSet<>();
-        for (InterviewQuestion q : questions) {
-            skills.addAll(parseStringList(q.getSkillsTested()));
+        try {
+            Set<String> skills = new LinkedHashSet<>();
+            for (InterviewQuestion q : questions) {
+                skills.addAll(parseStringList(q.getSkillsTested()));
+            }
+            InterviewCompletedEvent event = new InterviewCompletedEvent(
+                    session.getId(),
+                    session.getUserId(),
+                    session.getJobTitle(),
+                    session.getType(),
+                    session.getOverallScore(),
+                    session.getTotalQuestions(),
+                    new ArrayList<>(skills),
+                    session.getCompletedAt());
+            interviewKafkaTemplate.send(KafkaConfig.INTERVIEW_COMPLETED_TOPIC, session.getId(), event);
+        } catch (Exception e) {
+            log.warn("Failed to publish interview.completed event for session {} (session still completed): {}",
+                    session.getId(), e.getMessage());
         }
-        InterviewCompletedEvent event = new InterviewCompletedEvent(
-                session.getId(),
-                session.getUserId(),
-                session.getJobTitle(),
-                session.getType(),
-                session.getOverallScore(),
-                session.getTotalQuestions(),
-                new ArrayList<>(skills),
-                session.getCompletedAt());
-        interviewKafkaTemplate.send(KafkaConfig.INTERVIEW_COMPLETED_TOPIC, session.getId(), event);
     }
 
     private QuestionType parseType(String raw) {
