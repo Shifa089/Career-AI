@@ -30,8 +30,17 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.UUIDSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        # Fail a publish in ~5s if the broker is unreachable instead of blocking the default 60s.
+        max.block.ms: 5000
   websocket:
     message-size-limit: 65536
+  http:
+    client:
+      # Bounds the Spring AI (Anthropic) RestClient so a slow/unauthenticated model call fails fast
+      # instead of hanging question generation indefinitely.
+      connect-timeout: 10s
+      read-timeout: 60s
   ai:
     anthropic:
       api-key: ${ANTHROPIC_API_KEY:}
@@ -48,6 +57,12 @@ eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+  instance:
+    # The gateway routes by the address a service registers here. Default to a resolvable
+    # localhost so single-machine dev works; the machine's canonical hostname can resolve
+    # (via ISP DNS) to a bogus public IP, which makes lb:// routing fail. Override in prod.
+    hostname: ${EUREKA_INSTANCE_HOSTNAME:localhost}
+    prefer-ip-address: ${EUREKA_PREFER_IP:false}
 
 management:
   endpoints:

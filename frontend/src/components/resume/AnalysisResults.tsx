@@ -1,6 +1,6 @@
 import { Tab } from '@headlessui/react';
 import { BarChart3, Gauge, Lightbulb } from 'lucide-react';
-import { useAnalysis } from '../../hooks/useResume';
+import { useAnalysis, useResume } from '../../hooks/useResume';
 import LoadingSpinner from '../common/LoadingSpinner';
 import AtsScoreGauge from './AtsScoreGauge';
 import SkillsChart from './SkillsChart';
@@ -18,9 +18,13 @@ const TABS = [
 ];
 
 export default function AnalysisResults({ resume }: AnalysisResultsProps) {
-  const { data: analysis, isLoading, isError } = useAnalysis(resume.id, resume.status);
+  // The `resume` prop is a snapshot taken when the card/upload was opened; poll the live resume
+  // so we observe the PROCESSING → ANALYSED/FAILED transition instead of spinning forever.
+  const { data: liveResume } = useResume(resume.id);
+  const status = liveResume?.status ?? resume.status;
+  const { data: analysis, isError } = useAnalysis(resume.id, status);
 
-  if (resume.status === 'FAILED') {
+  if (status === 'FAILED') {
     return (
       <div className="rounded-xl bg-error-500/10 p-6 text-center text-sm text-error-600">
         Analysis failed for this resume. Try re-uploading.
@@ -28,16 +32,16 @@ export default function AnalysisResults({ resume }: AnalysisResultsProps) {
     );
   }
 
-  if (isLoading || !analysis) {
-    return <LoadingSpinner label="Loading analysis…" className="py-16" />;
-  }
-
-  if (isError) {
-    return (
-      <div className="py-16 text-center text-sm text-gray-500">
-        Analysis isn’t ready yet. Check back in a moment.
-      </div>
-    );
+  if (status !== 'ANALYSED' || !analysis) {
+    // Still processing (or the analysis row isn't queryable yet) — keep showing progress.
+    if (isError && status === 'ANALYSED') {
+      return (
+        <div className="py-16 text-center text-sm text-gray-500">
+          Analysis isn’t ready yet. Check back in a moment.
+        </div>
+      );
+    }
+    return <LoadingSpinner label="Analysing your resume…" className="py-16" />;
   }
 
   return (

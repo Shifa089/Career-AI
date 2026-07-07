@@ -117,19 +117,29 @@ public class AsyncResumeAnalyser {
         }
     }
 
+    /**
+     * Publishes the {@code resume.analysed} event. A broker outage must never fail the analysis
+     * itself — the analysis and cache are already persisted by the time we get here — so any Kafka
+     * error is logged and swallowed rather than propagated (which would mark the resume FAILED).
+     */
     private void publish(Resume resume, ResumeAnalysisResult result) {
-        List<String> skillNames = result.skills() == null
-                ? List.of()
-                : result.skills().stream().map(ResumeAnalysisResult.ExtractedSkill::skillName).toList();
-        ResumeAnalysedEvent event = new ResumeAnalysedEvent(
-                resume.getId(),
-                resume.getUserId(),
-                resume.getUserEmail(),
-                skillNames,
-                result.targetRoles() == null ? List.of() : result.targetRoles(),
-                result.atsScore(),
-                resume.getAnalysedAt());
-        resumeKafkaTemplate.send(KafkaConfig.RESUME_ANALYSED_TOPIC, resume.getId(), event);
+        try {
+            List<String> skillNames = result.skills() == null
+                    ? List.of()
+                    : result.skills().stream().map(ResumeAnalysisResult.ExtractedSkill::skillName).toList();
+            ResumeAnalysedEvent event = new ResumeAnalysedEvent(
+                    resume.getId(),
+                    resume.getUserId(),
+                    resume.getUserEmail(),
+                    skillNames,
+                    result.targetRoles() == null ? List.of() : result.targetRoles(),
+                    result.atsScore(),
+                    resume.getAnalysedAt());
+            resumeKafkaTemplate.send(KafkaConfig.RESUME_ANALYSED_TOPIC, resume.getId(), event);
+        } catch (Exception e) {
+            log.warn("Failed to publish resume.analysed event for resume {} (analysis still succeeded): {}",
+                    resume.getId(), e.getMessage());
+        }
     }
 
     private String toJson(List<String> values) {

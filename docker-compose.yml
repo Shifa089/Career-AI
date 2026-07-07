@@ -136,6 +136,15 @@ services:
     networks:
       - careerai-net
 
+  mailpit:
+    image: axllent/mailpit:v1.21
+    container_name: careerai-mailpit
+    ports:
+      - "1025:1025"   # SMTP (auth-service sends password-reset mail here in dev)
+      - "8025:8025"   # Web UI to view captured mail
+    networks:
+      - careerai-net
+
   prometheus:
     image: prom/prometheus:v3.0.1
     container_name: careerai-prometheus

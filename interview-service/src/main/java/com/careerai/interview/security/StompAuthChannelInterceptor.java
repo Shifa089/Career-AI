@@ -34,7 +34,15 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             if (StringUtils.hasText(authorization) && authorization.startsWith(BEARER_PREFIX)) {
                 String token = authorization.substring(BEARER_PREFIX.length());
                 if (jwtUtil.isValid(token)) {
-                    accessor.setUser(new StompPrincipal(jwtUtil.extractSubject(token)));
+                    // The principal name must be the user id (a UUID): the @MessageMapping handlers
+                    // resolve the caller via UUID.fromString(principal.getName()). The JWT `sub`
+                    // claim is the email, so bind the dedicated `userId` claim instead.
+                    String userId = jwtUtil.extractClaim(token, claims -> claims.get("userId", String.class));
+                    if (StringUtils.hasText(userId)) {
+                        accessor.setUser(new StompPrincipal(userId));
+                    } else {
+                        log.warn("STOMP CONNECT token has no userId claim; rejecting");
+                    }
                 } else {
                     log.debug("Rejected STOMP CONNECT with invalid token");
                 }

@@ -21,7 +21,9 @@ public class EmailServiceImpl implements EmailService {
 
     private final JavaMailSender mailSender;
 
-    @Value("${spring.mail.username:no-reply@careerai.com}")
+    // A dedicated From address — NOT spring.mail.username, which is intentionally blank for
+    // auth-less dev SMTP (Mailpit). Deriving From from an empty username yields "Illegal address".
+    @Value("${app.mail.from:no-reply@careerai.com}")
     private String fromAddress;
 
     @Value("${app.frontend-url:http://localhost:3000}")

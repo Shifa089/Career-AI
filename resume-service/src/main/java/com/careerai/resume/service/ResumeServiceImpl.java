@@ -16,6 +16,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -72,7 +74,21 @@ public class ResumeServiceImpl implements ResumeService {
                 .build();
         resume = resumeRepository.save(resume);
 
-        asyncResumeAnalyser.analyse(resume.getId(), targetRole);
+        // Kick off AI analysis only AFTER this transaction commits. The analyser is @Async +
+        // @Transactional, so it runs on its own thread/transaction; if invoked before commit it
+        // cannot see the just-saved resume row ("disappeared before analysis could run") and the
+        // resume would sit in PROCESSING forever.
+        final UUID resumeId = resume.getId();
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    asyncResumeAnalyser.analyse(resumeId, targetRole);
+                }
+            });
+        } else {
+            asyncResumeAnalyser.analyse(resumeId, targetRole);
+        }
 
         log.info("Resume {} uploaded for user {} ({} bytes); analysis queued",
                 resume.getId(), userId, upload.sizeBytes());

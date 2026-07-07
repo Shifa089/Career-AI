@@ -10,10 +10,17 @@ const RESUME_KEYS = {
   analysis: (id: string) => ['resumes', id, 'analysis'] as const,
 };
 
+const isProcessing = (status?: Resume['status']) =>
+  status === 'UPLOADED' || status === 'PROCESSING';
+
 export function useResumes() {
   return useQuery({
     queryKey: RESUME_KEYS.all,
     queryFn: () => resumeApi.list(),
+    // Keep the list fresh while any resume is still being analysed so status badges
+    // (and the open analysis view) transition out of PROCESSING on their own.
+    refetchInterval: (query) =>
+      (query.state.data ?? []).some((r) => isProcessing(r.status)) ? 5000 : false,
   });
 }
 
@@ -22,6 +29,9 @@ export function useResume(resumeId: string | undefined) {
     queryKey: RESUME_KEYS.detail(resumeId ?? ''),
     queryFn: () => resumeApi.get(resumeId as string),
     enabled: Boolean(resumeId),
+    // Poll the single resume while it's processing so callers observe the ANALYSED/FAILED
+    // transition instead of holding a stale PROCESSING snapshot forever.
+    refetchInterval: (query) => (isProcessing(query.state.data?.status) ? 4000 : false),
   });
 }
 

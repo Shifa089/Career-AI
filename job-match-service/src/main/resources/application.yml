@@ -40,11 +40,19 @@ spring:
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
         spring.json.add.type.headers: false
+        # Fail a publish in ~5s if the broker is unreachable instead of blocking the default 60s.
+        max.block.ms: 5000
   security:
     oauth2:
       resourceserver:
         jwt:
           secret: ${JWT_SECRET:change-me-in-production-this-must-be-at-least-256-bits-long}
+  http:
+    client:
+      # Bounds the Spring AI (Anthropic chat + OpenAI embeddings) RestClient so a slow/unauthenticated
+      # model call fails fast instead of hanging the request indefinitely.
+      connect-timeout: 10s
+      read-timeout: 60s
   ai:
     # Both Anthropic and OpenAI starters are on the classpath: pick chat from Anthropic (Claude) and
     # embeddings from OpenAI (text-embedding-3-small) so ChatClient/EmbeddingModel resolve unambiguously.
@@ -68,6 +76,12 @@ eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+  instance:
+    # The gateway routes by the address a service registers here. Default to a resolvable
+    # localhost so single-machine dev works; the machine's canonical hostname can resolve
+    # (via ISP DNS) to a bogus public IP, which makes lb:// routing fail. Override in prod.
+    hostname: ${EUREKA_INSTANCE_HOSTNAME:localhost}
+    prefer-ip-address: ${EUREKA_PREFER_IP:false}
 
 management:
   endpoints:
