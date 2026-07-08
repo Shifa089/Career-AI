@@ -1,14 +1,21 @@
 import { useState } from 'react';
-import { Lightbulb, Send } from 'lucide-react';
+import { Lightbulb, Loader2, Send } from 'lucide-react';
 
 interface AnswerInputProps {
   onSubmit: (answer: string) => void;
   onHint: (partialAnswer: string) => void;
   disabled?: boolean;
   isSubmitting?: boolean;
+  isHintLoading?: boolean;
 }
 
-export default function AnswerInput({ onSubmit, onHint, disabled, isSubmitting }: AnswerInputProps) {
+export default function AnswerInput({
+  onSubmit,
+  onHint,
+  disabled,
+  isSubmitting,
+  isHintLoading,
+}: AnswerInputProps) {
   const [answer, setAnswer] = useState('');
 
   const handleSubmit = () => {
@@ -43,9 +50,17 @@ export default function AnswerInput({ onSubmit, onHint, disabled, isSubmitting }
           type="button"
           className="btn-secondary"
           onClick={() => onHint(answer)}
-          disabled={disabled}
+          disabled={disabled || isHintLoading}
         >
-          <Lightbulb size={16} /> Get Hint
+          {isHintLoading ? (
+            <>
+              <Loader2 size={16} className="animate-spin" /> Getting hint…
+            </>
+          ) : (
+            <>
+              <Lightbulb size={16} /> Get Hint
+            </>
+          )}
         </button>
         <button
           type="button"

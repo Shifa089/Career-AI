@@ -5,11 +5,8 @@ import com.careerai.interview.config.KafkaConfig;
 import com.careerai.interview.domain.entity.InterviewFeedback;
 import com.careerai.interview.domain.entity.InterviewQuestion;
 import com.careerai.interview.domain.entity.InterviewSession;
-import com.careerai.interview.domain.enums.QuestionType;
 import com.careerai.interview.domain.enums.SessionStatus;
-import com.careerai.interview.dto.ai.AnswerEvaluation;
 import com.careerai.interview.dto.ai.FeedbackResult;
-import com.careerai.interview.dto.ai.QuestionResult;
 import com.careerai.interview.dto.request.CreateSessionRequest;
 import com.careerai.interview.dto.request.SubmitAnswerRequest;
 import com.careerai.interview.dto.response.FeedbackResponse;
@@ -27,6 +24,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -37,6 +35,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -57,6 +56,8 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
     private final InterviewFeedbackRepository feedbackRepository;
     private final QuestionGenerationService questionGenerationService;
     private final FeedbackService feedbackService;
+    private final QuestionPrefetchService questionPrefetchService;
+    private final AnswerEvaluationService answerEvaluationService;
     private final SessionStateService sessionStateService;
     private final InterviewMapper interviewMapper;
     private final KafkaTemplate<UUID, InterviewCompletedEvent> interviewKafkaTemplate;
@@ -96,7 +97,7 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         sessionStateService.saveActiveSession(sessionId, new ActiveSessionState(
                 sessionId, userId, 0, new ArrayList<>(), LocalDateTime.now()));
 
-        InterviewQuestion question = generateAndSaveQuestion(session, 1, List.of());
+        InterviewQuestion question = questionPrefetchService.ensureQuestion(sessionId, 1);
         sessionStateService.saveActiveSession(sessionId, new ActiveSessionState(
                 sessionId, userId, 1, new ArrayList<>(List.of(question.getQuestionText())), LocalDateTime.now()));
         return interviewMapper.toQuestionResponse(question);
@@ -104,7 +105,7 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
 
     @Override
     @Transactional
-    public SubmitAnswerResult submitAnswer(UUID sessionId, SubmitAnswerRequest request, UUID userId) {
+    public RecordAnswerResult recordAnswer(UUID sessionId, SubmitAnswerRequest request, UUID userId) {
         InterviewSession session = ownedSession(sessionId, userId);
         if (session.getStatus() != SessionStatus.ACTIVE) {
             throw new SessionAlreadyActiveException(
@@ -115,29 +116,40 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
                 .filter(q -> q.getSession().getId().equals(sessionId))
                 .orElseThrow(() -> new ResourceNotFoundException("Interview question", request.questionId()));
 
-        AnswerEvaluation evaluation = feedbackService.evaluateAnswer(
-                question.getQuestionText(), request.answer(), question.getIdealAnswer(), session.getJobTitle());
-
+        // Persist the raw answer only — no AI call — so scoring/next-question failures downstream can
+        // never roll this back and strand the candidate on the same question. Re-answering the same
+        // question is idempotent: the counter is not double-incremented and the stale score is cleared
+        // so the answer is re-scored.
+        boolean alreadyAnswered = question.getUserAnswer() != null;
         question.setUserAnswer(request.answer());
-        question.setAnswerScore(evaluation.score());
-        question.setAnswerFeedback(evaluation.feedback());
+        question.setAnswerScore(null);
+        question.setAnswerFeedback(null);
         question.setAnsweredAt(LocalDateTime.now());
         questionRepository.save(question);
 
-        session.setQuestionsAnswered(session.getQuestionsAnswered() + 1);
-
-        if (question.getQuestionNumber() < session.getTotalQuestions()) {
-            List<String> previous = previousQuestionTexts(sessionId);
-            int nextNumber = question.getQuestionNumber() + 1;
-            InterviewQuestion next = generateAndSaveQuestion(session, nextNumber, previous);
+        if (!alreadyAnswered) {
+            session.setQuestionsAnswered(session.getQuestionsAnswered() + 1);
             sessionRepository.save(session);
-            sessionStateService.appendQuestion(sessionId, nextNumber, next.getQuestionText());
-            return new SubmitAnswerResult(evaluation.score(), evaluation.feedback(),
-                    interviewMapper.toQuestionResponse(next), null, false);
         }
 
-        FeedbackResponse feedback = completeSession(session);
-        return new SubmitAnswerResult(evaluation.score(), evaluation.feedback(), null, feedback, true);
+        boolean last = question.getQuestionNumber() >= session.getTotalQuestions();
+        return new RecordAnswerResult(question.getId(), question.getQuestionNumber(), session.getJobTitle(), last);
+    }
+
+    @Override
+    @Transactional
+    public QuestionResponse provideNextQuestion(UUID sessionId, int nextNumber, UUID userId) {
+        ownedSession(sessionId, userId);
+        InterviewQuestion question;
+        try {
+            question = questionPrefetchService.ensureQuestion(sessionId, nextNumber);
+        } catch (DataIntegrityViolationException raceLost) {
+            // A concurrent prefetch won the create race; use its result.
+            question = questionRepository.findBySessionIdAndQuestionNumber(sessionId, nextNumber)
+                    .orElseThrow(() -> raceLost);
+        }
+        sessionStateService.appendQuestion(sessionId, nextNumber, question.getQuestionText());
+        return interviewMapper.toQuestionResponse(question);
     }
 
     @Override
@@ -154,12 +166,22 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
 
     @Override
     @Transactional
+    public FeedbackResponse completeSession(UUID sessionId, UUID userId) {
+        InterviewSession session = ownedSession(sessionId, userId);
+        if (session.getStatus() == SessionStatus.COMPLETED) {
+            return getFeedback(sessionId, userId);
+        }
+        return finaliseSession(session);
+    }
+
+    @Override
+    @Transactional
     public FeedbackResponse endSession(UUID sessionId, UUID userId) {
         InterviewSession session = ownedSession(sessionId, userId);
         if (session.getStatus() == SessionStatus.COMPLETED) {
             return getFeedback(sessionId, userId);
         }
-        return completeSession(session);
+        return finaliseSession(session);
     }
 
     @Override
@@ -215,25 +237,29 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         return session;
     }
 
-    private InterviewQuestion generateAndSaveQuestion(InterviewSession session, int number, List<String> previous) {
-        QuestionResult result = questionGenerationService.generateQuestion(session, number, previous);
-        InterviewQuestion question = InterviewQuestion.builder()
-                .session(session)
-                .questionNumber(number)
-                .questionText(result.questionText())
-                .type(parseType(result.type()))
-                .difficulty(result.difficulty())
-                .idealAnswer(result.idealAnswer())
-                .skillsTested(toJson(result.skillsTested()))
-                .askedAt(LocalDateTime.now())
-                .build();
-        return questionRepository.save(question);
-    }
-
-    private FeedbackResponse completeSession(InterviewSession session) {
+    /**
+     * Finalises a session in a way that can never trap the candidate: outstanding answer scores are
+     * backfilled synchronously, the final report is generated with a computed fallback if the AI call
+     * fails, and the session is always marked COMPLETED. None of this runs inside the answer-submission
+     * transaction, so a failure here leaves the persisted answers intact.
+     */
+    private FeedbackResponse finaliseSession(InterviewSession session) {
+        // Backfill any answered-but-unscored question so the report reflects real per-answer scores,
+        // regardless of whether the async scoring finished (or failed).
         List<InterviewQuestion> questions =
                 questionRepository.findBySessionIdOrderByQuestionNumber(session.getId());
-        FeedbackResult result = feedbackService.generateFinalFeedback(session, questions);
+        for (InterviewQuestion q : questions) {
+            if (q.getUserAnswer() != null && q.getAnswerScore() == null) {
+                try {
+                    answerEvaluationService.evaluateAndStore(q.getId(), session.getJobTitle());
+                } catch (Exception e) {
+                    log.warn("Backfill scoring failed for question {} (continuing): {}", q.getId(), e.getMessage());
+                }
+            }
+        }
+        questions = questionRepository.findBySessionIdOrderByQuestionNumber(session.getId());
+
+        FeedbackResult result = generateFeedbackResilient(session, questions);
 
         session.setOverallScore(result.overallScore());
         session.setFeedbackSummary(result.detailedFeedback());
@@ -288,15 +314,36 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         }
     }
 
-    private QuestionType parseType(String raw) {
-        if (raw == null) {
-            return null;
-        }
+    /**
+     * Generates the final report, degrading gracefully. If Claude fails (malformed JSON, timeout,
+     * open circuit) we fall back to a report computed from the per-answer scores rather than throwing
+     * — a throw here would leave the session un-completed and the candidate stuck on the last question.
+     */
+    private FeedbackResult generateFeedbackResilient(InterviewSession session, List<InterviewQuestion> questions) {
         try {
-            return QuestionType.valueOf(raw.trim().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            return null;
+            return feedbackService.generateFinalFeedback(session, questions);
+        } catch (Exception e) {
+            log.error("Final feedback generation failed for session {}; using computed fallback: {}",
+                    session.getId(), e.getMessage());
+            return fallbackFeedback(questions);
         }
+    }
+
+    private FeedbackResult fallbackFeedback(List<InterviewQuestion> questions) {
+        int avg = (int) Math.round(questions.stream()
+                .map(InterviewQuestion::getAnswerScore)
+                .filter(Objects::nonNull)
+                .mapToInt(Integer::intValue)
+                .average()
+                .orElse(0.0));
+        return new FeedbackResult(
+                avg, avg, avg, avg, avg,
+                List.of("Completed all interview questions"),
+                List.of("Detailed AI analysis was unavailable — review your answers and retry for a full report"),
+                "Your interview is complete and your answers were scored. The detailed narrative report "
+                        + "could not be generated this time, so your overall score reflects the average of your "
+                        + "per-answer scores. Retake the interview for a full breakdown.",
+                List.of());
     }
 
     private String toJson(List<String> values) {
@@ -325,11 +372,5 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         } catch (Exception e) {
             return List.of();
         }
-    }
-
-    private List<String> previousQuestionTexts(UUID sessionId) {
-        return questionRepository.findBySessionIdOrderByQuestionNumber(sessionId).stream()
-                .map(InterviewQuestion::getQuestionText)
-                .toList();
     }
 }

@@ -206,14 +206,28 @@ class JobMatchServiceImplTest {
     }
 
     @Test
-    void searchJobs_blankFiltersBecomeNull() {
+    void searchJobs_noFilters_returnsLatestJobs() {
         var pageable = org.springframework.data.domain.PageRequest.of(0, 20);
-        when(jobListingRepository.search(eq(null), eq(null), eq(pageable)))
+        when(jobListingRepository.findActiveLatest(pageable))
                 .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of()));
 
         service.searchJobs("  ", "", pageable);
 
-        verify(jobListingRepository).search(null, null, pageable);
+        // Blank filters → the newest-first "latest jobs" feed, not a keyword search.
+        verify(jobListingRepository).findActiveLatest(pageable);
+        verify(jobListingRepository, never()).search(any(), any(), any());
+    }
+
+    @Test
+    void searchJobs_withKeyword_usesSearch() {
+        var pageable = org.springframework.data.domain.PageRequest.of(0, 20);
+        when(jobListingRepository.search(eq("java"), eq(null), eq(pageable)))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of()));
+
+        service.searchJobs("java", "  ", pageable);
+
+        verify(jobListingRepository).search("java", null, pageable);
+        verify(jobListingRepository, never()).findActiveLatest(any());
     }
 
     @Test
@@ -238,7 +252,7 @@ class JobMatchServiceImplTest {
 
     private JobMatchResponse sampleResponse() {
         JobListingResponse job = new JobListingResponse(UUID.randomUUID(), "Backend Engineer", "Acme", "Remote",
-                "REMOTE", "desc", List.of("Java"), List.of(), "$100k", "SENIOR", "http://x", null);
+                "REMOTE", "desc", List.of("Java"), List.of(), "$100k", "SENIOR", "http://x", "SEED", null, true, null);
         return new JobMatchResponse(UUID.randomUUID(), job, 0.9, 90, List.of("Java"), List.of("Kafka"),
                 "PENDING_REVIEW", null);
     }

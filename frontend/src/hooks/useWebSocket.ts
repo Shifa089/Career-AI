@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Client, type IMessage } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
+import toast from 'react-hot-toast';
 import { useAuthStore } from '../store/authStore';
 import { useInterviewStore } from '../store/interviewStore';
 import type {
@@ -34,6 +35,7 @@ export function useWebSocket(sessionId: string | undefined): UseWebSocketResult 
     addMessage,
     setCurrentQuestion,
     setHint,
+    setHintLoading,
     setFinalFeedback,
     setConnected,
     setLoading,
@@ -60,19 +62,30 @@ export function useWebSocket(sessionId: string | undefined): UseWebSocketResult 
           if ('hint' in payload) {
             setHint(String(payload.hint ?? ''));
           }
+          setHintLoading(false);
           break;
         }
         case 'SESSION_COMPLETE':
           setFinalFeedback(msg.payload as InterviewFeedback);
           setComplete(true);
           setLoading(false);
+          setHintLoading(false);
           break;
-        case 'ERROR':
+        case 'ERROR': {
+          // Surface the failure instead of silently dropping the user back onto the same question.
+          const payload = (msg.payload ?? {}) as Record<string, unknown>;
+          const message =
+            typeof payload.message === 'string' && payload.message
+              ? payload.message
+              : 'Something went wrong. Please try again.';
+          toast.error(message);
           setLoading(false);
+          setHintLoading(false);
           break;
+        }
       }
     },
-    [addMessage, setCurrentQuestion, setHint, setFinalFeedback, setComplete, setLoading],
+    [addMessage, setCurrentQuestion, setHint, setHintLoading, setFinalFeedback, setComplete, setLoading],
   );
 
   useEffect(() => {
@@ -142,9 +155,10 @@ export function useWebSocket(sessionId: string | undefined): UseWebSocketResult 
 
   const sendHint = useCallback(
     (partialAnswer: string) => {
+      setHintLoading(true);
       publish('hint', { type: 'REQUEST_HINT', content: partialAnswer });
     },
-    [publish],
+    [publish, setHintLoading],
   );
 
   const sendEnd = useCallback(() => {

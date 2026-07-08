@@ -187,8 +187,14 @@ public class JobMatchServiceImpl implements JobMatchService {
     @Override
     @Transactional(readOnly = true)
     public Page<JobListingResponse> searchJobs(String keyword, String location, Pageable pageable) {
-        return jobListingRepository.search(blankToNull(keyword), blankToNull(location), pageable)
-                .map(mapper::toJobListingResponse);
+        String kw = blankToNull(keyword);
+        String loc = blankToNull(location);
+        // With no filters this is the candidate "Latest Jobs" feed (newest first, no resume needed);
+        // with filters it is a newest-first keyword/location search.
+        Page<JobListing> page = (kw == null && loc == null)
+                ? jobListingRepository.findActiveLatest(pageable)
+                : jobListingRepository.search(kw, loc, pageable);
+        return page.map(mapper::toJobListingResponse);
     }
 
     @Override
