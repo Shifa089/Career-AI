@@ -135,6 +135,6 @@ class JobMatchControllerTest {
 
     private JobListingResponse listing() {
         return new JobListingResponse(UUID.randomUUID(), "Backend", "Acme", "Remote", "REMOTE", "desc",
-                List.of("Java"), List.of(), "$100k", "SENIOR", "http://x", null);
+                List.of("Java"), List.of(), "$100k", "SENIOR", "http://x", "SEED", null, true, null);
     }
 }

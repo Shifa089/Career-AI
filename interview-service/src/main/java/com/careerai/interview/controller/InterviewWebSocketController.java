@@ -1,11 +1,14 @@
 package com.careerai.interview.controller;
 
 import com.careerai.interview.dto.request.SubmitAnswerRequest;
+import com.careerai.interview.dto.response.FeedbackResponse;
 import com.careerai.interview.dto.response.QuestionResponse;
 import com.careerai.interview.dto.websocket.WsIncomingMessage;
 import com.careerai.interview.dto.websocket.WsOutgoingMessage;
+import com.careerai.interview.service.AnswerEvaluationService;
 import com.careerai.interview.service.InterviewSessionService;
-import com.careerai.interview.service.SubmitAnswerResult;
+import com.careerai.interview.service.QuestionPrefetchService;
+import com.careerai.interview.service.RecordAnswerResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
@@ -29,6 +32,8 @@ import java.util.UUID;
 public class InterviewWebSocketController {
 
     private final InterviewSessionService interviewSessionService;
+    private final AnswerEvaluationService answerEvaluationService;
+    private final QuestionPrefetchService questionPrefetchService;
     private final SimpMessagingTemplate messagingTemplate;
 
     @MessageMapping("/interview/{sessionId}/start")
@@ -36,6 +41,9 @@ public class InterviewWebSocketController {
         dispatch(sessionId, principal, userId -> {
             QuestionResponse question = interviewSessionService.startSession(sessionId, userId);
             send(principal, sessionId, WsOutgoingMessage.Type.QUESTION, question);
+            // Pre-generate the next question while the candidate answers this one, so the transition
+            // feels instant. Best-effort — the sync path regenerates if this never lands.
+            prefetchNext(sessionId, question.questionNumber(), question.totalQuestions());
         });
     }
 
@@ -45,16 +53,27 @@ public class InterviewWebSocketController {
                        Principal principal) {
         dispatch(sessionId, principal, userId -> {
             UUID questionId = UUID.fromString(requireMetadata(message, "questionId"));
-            SubmitAnswerResult result = interviewSessionService.submitAnswer(
+
+            // 1. Persist the raw answer and commit it before any AI work. This is the fix for the
+            //    "loops back to the same question" bug: scoring/next-question/report failures below
+            //    run in their own units of work and can no longer roll back the committed answer.
+            RecordAnswerResult recorded = interviewSessionService.recordAnswer(
                     sessionId, new SubmitAnswerRequest(questionId, message.content()), userId);
 
-            // Per-answer scores are computed and persisted server-side but intentionally NOT
-            // streamed back mid-interview. The candidate only sees a single consolidated report
-            // once every question has been answered (SESSION_COMPLETE).
-            if (result.completed()) {
-                send(principal, sessionId, WsOutgoingMessage.Type.SESSION_COMPLETE, result.finalFeedback());
+            // 2. Score the answer in the background. Per-answer scores are persisted for the final
+            //    report but intentionally NOT streamed mid-interview, and the candidate never waits
+            //    for this analysis before seeing the next question.
+            answerEvaluationService.evaluateAsync(recorded.questionId(), recorded.jobTitle());
+
+            // 3. Either advance to the next question (served from prefetch, near-instant) or finish.
+            if (recorded.last()) {
+                FeedbackResponse feedback = interviewSessionService.completeSession(sessionId, userId);
+                send(principal, sessionId, WsOutgoingMessage.Type.SESSION_COMPLETE, feedback);
             } else {
-                send(principal, sessionId, WsOutgoingMessage.Type.QUESTION, result.nextQuestion());
+                int nextNumber = recorded.questionNumber() + 1;
+                QuestionResponse next = interviewSessionService.provideNextQuestion(sessionId, nextNumber, userId);
+                send(principal, sessionId, WsOutgoingMessage.Type.QUESTION, next);
+                prefetchNext(sessionId, next.questionNumber(), next.totalQuestions());
             }
         });
     }
@@ -74,6 +93,20 @@ public class InterviewWebSocketController {
         dispatch(sessionId, principal, userId ->
                 send(principal, sessionId, WsOutgoingMessage.Type.SESSION_COMPLETE,
                         interviewSessionService.endSession(sessionId, userId)));
+    }
+
+    /**
+     * Fire-and-forget pre-generation of the question after {@code currentNumber}, if one exists.
+     * Never throws into the STOMP handler.
+     */
+    private void prefetchNext(UUID sessionId, Integer currentNumber, Integer totalQuestions) {
+        if (currentNumber == null || totalQuestions == null) {
+            return;
+        }
+        int nextNumber = currentNumber + 1;
+        if (nextNumber <= totalQuestions) {
+            questionPrefetchService.prefetchAsync(sessionId, nextNumber);
+        }
     }
 
     private void dispatch(UUID sessionId, Principal principal, SessionAction action) {

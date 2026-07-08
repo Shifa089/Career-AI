@@ -21,6 +21,7 @@ export default function InterviewRoom({ session }: InterviewRoomProps) {
   const {
     currentQuestion,
     hint,
+    isHintLoading,
     finalFeedback,
     isLoading,
     isComplete,
@@ -164,6 +165,7 @@ export default function InterviewRoom({ session }: InterviewRoomProps) {
                 onHint={sendHint}
                 disabled={!currentQuestion || !isConnected}
                 isSubmitting={isLoading}
+                isHintLoading={isHintLoading}
               />
             )}
           </div>

@@ -8,6 +8,7 @@ import com.careerai.interview.dto.ai.FeedbackResult;
 import com.careerai.interview.dto.ai.QuestionResult;
 import com.careerai.interview.dto.request.CreateSessionRequest;
 import com.careerai.interview.dto.request.SubmitAnswerRequest;
+import com.careerai.interview.dto.response.FeedbackResponse;
 import com.careerai.interview.dto.response.QuestionResponse;
 import com.careerai.interview.dto.response.SessionResponse;
 import com.careerai.interview.repository.InterviewFeedbackRepository;
@@ -113,17 +114,20 @@ class InterviewSessionIntegrationTest {
         QuestionResponse q1 = interviewSessionService.startSession(created.id(), USER_ID);
         assertThat(q1.questionNumber()).isEqualTo(1);
 
-        SubmitAnswerResult first = interviewSessionService.submitAnswer(
+        // Mirrors the WebSocket controller orchestration: record the answer, then serve the next
+        // question (scoring happens off the critical path / is backfilled at completion).
+        RecordAnswerResult first = interviewSessionService.recordAnswer(
                 created.id(), new SubmitAnswerRequest(q1.questionId(), "My first answer"), USER_ID);
-        assertThat(first.completed()).isFalse();
-        assertThat(first.nextQuestion()).isNotNull();
+        assertThat(first.last()).isFalse();
+        QuestionResponse q2 = interviewSessionService.provideNextQuestion(
+                created.id(), first.questionNumber() + 1, USER_ID);
+        assertThat(q2.questionNumber()).isEqualTo(2);
 
-        SubmitAnswerResult second = interviewSessionService.submitAnswer(
-                created.id(), new SubmitAnswerRequest(first.nextQuestion().questionId(), "My second answer"),
-                USER_ID);
-        assertThat(second.completed()).isTrue();
-        assertThat(second.finalFeedback()).isNotNull();
-        assertThat(second.finalFeedback().overallScore()).isEqualTo(76);
+        RecordAnswerResult second = interviewSessionService.recordAnswer(
+                created.id(), new SubmitAnswerRequest(q2.questionId(), "My second answer"), USER_ID);
+        assertThat(second.last()).isTrue();
+        FeedbackResponse feedback = interviewSessionService.completeSession(created.id(), USER_ID);
+        assertThat(feedback.overallScore()).isEqualTo(76);
 
         InterviewSession persisted = sessionRepository.findById(created.id()).orElseThrow();
         assertThat(persisted.getStatus()).isEqualTo(SessionStatus.COMPLETED);

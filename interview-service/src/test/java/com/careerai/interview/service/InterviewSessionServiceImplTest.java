@@ -7,9 +7,7 @@ import com.careerai.interview.domain.entity.InterviewSession;
 import com.careerai.interview.domain.enums.InterviewType;
 import com.careerai.interview.domain.enums.QuestionType;
 import com.careerai.interview.domain.enums.SessionStatus;
-import com.careerai.interview.dto.ai.AnswerEvaluation;
 import com.careerai.interview.dto.ai.FeedbackResult;
-import com.careerai.interview.dto.ai.QuestionResult;
 import com.careerai.interview.dto.request.CreateSessionRequest;
 import com.careerai.interview.dto.request.SubmitAnswerRequest;
 import com.careerai.interview.dto.response.FeedbackResponse;
@@ -39,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -51,6 +50,8 @@ class InterviewSessionServiceImplTest {
     @Mock private InterviewFeedbackRepository feedbackRepository;
     @Mock private QuestionGenerationService questionGenerationService;
     @Mock private FeedbackService feedbackService;
+    @Mock private QuestionPrefetchService questionPrefetchService;
+    @Mock private AnswerEvaluationService answerEvaluationService;
     @Mock private SessionStateService sessionStateService;
     @Mock private InterviewMapper interviewMapper;
     @Mock private KafkaTemplate<UUID, InterviewCompletedEvent> interviewKafkaTemplate;
@@ -66,7 +67,8 @@ class InterviewSessionServiceImplTest {
     void setUp() {
         service = new InterviewSessionServiceImpl(
                 sessionRepository, questionRepository, feedbackRepository,
-                questionGenerationService, feedbackService, sessionStateService,
+                questionGenerationService, feedbackService, questionPrefetchService,
+                answerEvaluationService, sessionStateService,
                 interviewMapper, interviewKafkaTemplate, objectMapper);
     }
 
@@ -94,51 +96,67 @@ class InterviewSessionServiceImplTest {
     }
 
     @Test
-    void submitAnswer_notLastQuestion_evaluatesAndGeneratesNext() {
+    void recordAnswer_notLastQuestion_persistsAnswerWithoutAiCall() {
         InterviewSession session = activeSession(10);
         InterviewQuestion question = answeredQuestionStub(session, 1);
 
         when(sessionRepository.findById(session.getId())).thenReturn(Optional.of(session));
         when(questionRepository.findById(question.getId())).thenReturn(Optional.of(question));
-        when(feedbackService.evaluateAnswer(any(), any(), any(), any()))
-                .thenReturn(new AnswerEvaluation(80, "Good answer", "clarity", "depth"));
-        when(questionRepository.findBySessionIdOrderByQuestionNumber(session.getId()))
-                .thenReturn(List.of(question));
-        when(questionGenerationService.generateQuestion(eq(session), eq(2), anyList()))
-                .thenReturn(new QuestionResult("Next?", "TECHNICAL", "MEDIUM", List.of("Java"), "ideal"));
-        when(questionRepository.save(any(InterviewQuestion.class))).thenAnswer(inv -> {
-            InterviewQuestion q = inv.getArgument(0);
-            if (q.getId() == null) {
-                q.setId(UUID.randomUUID());
-            }
-            return q;
-        });
-        when(interviewMapper.toQuestionResponse(any(InterviewQuestion.class)))
-                .thenReturn(new QuestionResponse(UUID.randomUUID(), 2, "Next?", QuestionType.TECHNICAL, "MEDIUM", 10));
+        when(questionRepository.save(any(InterviewQuestion.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        SubmitAnswerResult result = service.submitAnswer(
+        RecordAnswerResult result = service.recordAnswer(
                 session.getId(), new SubmitAnswerRequest(question.getId(), "my answer"), USER_ID);
 
-        assertThat(result.completed()).isFalse();
-        assertThat(result.answerScore()).isEqualTo(80);
-        assertThat(result.nextQuestion()).isNotNull();
-        assertThat(result.finalFeedback()).isNull();
+        assertThat(result.last()).isFalse();
+        assertThat(result.questionNumber()).isEqualTo(1);
+        assertThat(result.jobTitle()).isEqualTo("Backend Engineer");
+        assertThat(question.getUserAnswer()).isEqualTo("my answer");
         assertThat(session.getQuestionsAnswered()).isEqualTo(1);
-        verify(sessionStateService).appendQuestion(eq(session.getId()), eq(2), any());
-        verify(feedbackService, org.mockito.Mockito.never())
-                .generateFinalFeedback(any(), anyList());
+        // No blocking AI call happens while recording the answer.
+        verify(feedbackService, never()).evaluateAnswer(any(), any(), any(), any());
+        verify(feedbackService, never()).generateFinalFeedback(any(), anyList());
     }
 
     @Test
-    void submitAnswer_lastQuestion_completesSessionAndPublishesEvent() {
+    void recordAnswer_lastQuestion_flagsLast() {
         InterviewSession session = activeSession(1);
         InterviewQuestion question = answeredQuestionStub(session, 1);
 
         when(sessionRepository.findById(session.getId())).thenReturn(Optional.of(session));
         when(questionRepository.findById(question.getId())).thenReturn(Optional.of(question));
-        when(feedbackService.evaluateAnswer(any(), any(), any(), any()))
-                .thenReturn(new AnswerEvaluation(90, "Great", "depth", "none"));
         when(questionRepository.save(any(InterviewQuestion.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        RecordAnswerResult result = service.recordAnswer(
+                session.getId(), new SubmitAnswerRequest(question.getId(), "final answer"), USER_ID);
+
+        assertThat(result.last()).isTrue();
+        assertThat(session.getQuestionsAnswered()).isEqualTo(1);
+    }
+
+    @Test
+    void provideNextQuestion_returnsPrefetchedQuestion() {
+        InterviewSession session = activeSession(10);
+        InterviewQuestion next = answeredQuestionStub(session, 2);
+
+        when(sessionRepository.findById(session.getId())).thenReturn(Optional.of(session));
+        when(questionPrefetchService.ensureQuestion(session.getId(), 2)).thenReturn(next);
+        when(interviewMapper.toQuestionResponse(next))
+                .thenReturn(new QuestionResponse(next.getId(), 2, "Next?", QuestionType.TECHNICAL, "MEDIUM", 10));
+
+        QuestionResponse response = service.provideNextQuestion(session.getId(), 2, USER_ID);
+
+        assertThat(response.questionNumber()).isEqualTo(2);
+        verify(sessionStateService).appendQuestion(eq(session.getId()), eq(2), any());
+    }
+
+    @Test
+    void completeSession_generatesReportAndPublishesEvent() {
+        InterviewSession session = activeSession(1);
+        InterviewQuestion question = answeredQuestionStub(session, 1);
+        question.setUserAnswer("final answer");
+        question.setAnswerScore(90); // already scored → no backfill
+
+        when(sessionRepository.findById(session.getId())).thenReturn(Optional.of(session));
         when(questionRepository.findBySessionIdOrderByQuestionNumber(session.getId()))
                 .thenReturn(List.of(question));
         when(feedbackService.generateFinalFeedback(eq(session), anyList()))
@@ -153,11 +171,9 @@ class InterviewSessionServiceImplTest {
         FeedbackResponse mappedFeedback = sampleFeedbackResponse(session.getId());
         when(interviewMapper.toFeedbackResponse(any(InterviewFeedback.class))).thenReturn(mappedFeedback);
 
-        SubmitAnswerResult result = service.submitAnswer(
-                session.getId(), new SubmitAnswerRequest(question.getId(), "final answer"), USER_ID);
+        FeedbackResponse result = service.completeSession(session.getId(), USER_ID);
 
-        assertThat(result.completed()).isTrue();
-        assertThat(result.finalFeedback()).isSameAs(mappedFeedback);
+        assertThat(result).isSameAs(mappedFeedback);
         assertThat(session.getStatus()).isEqualTo(SessionStatus.COMPLETED);
         assertThat(session.getOverallScore()).isEqualTo(84);
         assertThat(session.getCompletedAt()).isNotNull();
@@ -165,6 +181,35 @@ class InterviewSessionServiceImplTest {
         verify(sessionStateService).removeActiveSession(session.getId());
         verify(interviewKafkaTemplate).send(eq(KafkaConfig.INTERVIEW_COMPLETED_TOPIC),
                 eq(session.getId()), any(InterviewCompletedEvent.class));
+    }
+
+    @Test
+    void completeSession_whenFinalFeedbackFails_usesFallbackAndStillCompletes() {
+        InterviewSession session = activeSession(1);
+        InterviewQuestion question = answeredQuestionStub(session, 1);
+        question.setUserAnswer("final answer");
+        question.setAnswerScore(70); // already scored → fallback averages this
+
+        when(sessionRepository.findById(session.getId())).thenReturn(Optional.of(session));
+        when(questionRepository.findBySessionIdOrderByQuestionNumber(session.getId()))
+                .thenReturn(List.of(question));
+        when(feedbackService.generateFinalFeedback(any(), anyList()))
+                .thenThrow(new RuntimeException("AI down"));
+        when(feedbackRepository.save(any(InterviewFeedback.class))).thenAnswer(inv -> {
+            InterviewFeedback f = inv.getArgument(0);
+            f.setId(UUID.randomUUID());
+            return f;
+        });
+        FeedbackResponse mappedFeedback = sampleFeedbackResponse(session.getId());
+        when(interviewMapper.toFeedbackResponse(any(InterviewFeedback.class))).thenReturn(mappedFeedback);
+
+        FeedbackResponse result = service.completeSession(session.getId(), USER_ID);
+
+        // The session still completes with a computed fallback report — never traps the candidate.
+        assertThat(result).isSameAs(mappedFeedback);
+        assertThat(session.getStatus()).isEqualTo(SessionStatus.COMPLETED);
+        assertThat(session.getOverallScore()).isEqualTo(70); // average of per-answer scores
+        verify(feedbackRepository).save(any(InterviewFeedback.class));
     }
 
     // ----- helpers -------------------------------------------------------------------------------

@@ -1,13 +1,11 @@
 package com.careerai.jobmatch.service;
 
 import com.careerai.common.exception.ResourceNotFoundException;
-import com.careerai.jobmatch.domain.entity.JobEmbedding;
 import com.careerai.jobmatch.domain.entity.JobListing;
 import com.careerai.jobmatch.domain.enums.JobSource;
 import com.careerai.jobmatch.dto.request.CreateJobRequest;
 import com.careerai.jobmatch.dto.response.JobListingResponse;
 import com.careerai.jobmatch.mapper.JobMatchMapper;
-import com.careerai.jobmatch.repository.JobEmbeddingRepository;
 import com.careerai.jobmatch.repository.JobListingRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -33,8 +31,7 @@ import java.util.UUID;
 public class EmployerJobServiceImpl implements EmployerJobService {
 
     private final JobListingRepository jobListingRepository;
-    private final JobEmbeddingRepository jobEmbeddingRepository;
-    private final EmbeddingService embeddingService;
+    private final JobEmbeddingIndexer jobEmbeddingIndexer;
     private final JobMatchMapper jobMatchMapper;
     private final ObjectMapper objectMapper;
 
@@ -81,19 +78,15 @@ public class EmployerJobServiceImpl implements EmployerJobService {
 
     /**
      * Best-effort embedding so a posted job is immediately matchable. A missing/failed embedding
-     * model must not fail the post — the job is still persisted and can be re-embedded later.
+     * model must not fail the post — the job is still persisted (and visible in the latest-jobs feed),
+     * and {@code JobEmbeddingBackfillService} will retry the embedding on its next run.
      */
     private void indexForMatching(JobListing listing) {
         try {
-            String text = listing.getTitle() + ". " + listing.getDescriptionText();
-            float[] embedding = embeddingService.generateEmbedding(text);
-            jobEmbeddingRepository.save(JobEmbedding.builder()
-                    .jobListing(listing)
-                    .embedding(embedding)
-                    .build());
+            jobEmbeddingIndexer.index(listing);
         } catch (Exception e) {
-            log.warn("Could not embed posted job {} (is the embedding model configured?): {}",
-                    listing.getId(), e.getMessage());
+            log.error("Could not embed posted job {} at post time — it will be picked up by the embedding "
+                    + "backfill job (is the embedding model configured?): {}", listing.getId(), e.getMessage());
         }
     }
 
